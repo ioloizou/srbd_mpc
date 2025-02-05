@@ -1,7 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+import numpy as np
 import matplotlib.animation as animation
+
+# Global parameters.
+body_size = (0.5, 0.3, 1.)  # width, depth, height
+foot_length = 0.4
+foot_width = 0.2
+foot_sep = 0.4
 
 def euler_rotation_matrix(roll, pitch, yaw):
   """
@@ -9,71 +16,67 @@ def euler_rotation_matrix(roll, pitch, yaw):
   Rotation order: roll (x), pitch (y), yaw (z).
   """
   Rx = np.array([[1, 0, 0],
-           [0, np.cos(roll), -np.sin(roll)],
-           [0, np.sin(roll),  np.cos(roll)]])
+                 [0, np.cos(roll), -np.sin(roll)],
+                 [0, np.sin(roll),  np.cos(roll)]])
   
   Ry = np.array([[ np.cos(pitch), 0, np.sin(pitch)],
-           [0, 1, 0],
-           [-np.sin(pitch), 0, np.cos(pitch)]])
+                 [0, 1, 0],
+                 [-np.sin(pitch), 0, np.cos(pitch)]])
   
   Rz = np.array([[np.cos(yaw), -np.sin(yaw), 0],
-           [np.sin(yaw),  np.cos(yaw), 0],
-           [0, 0, 1]])
+                 [np.sin(yaw),  np.cos(yaw), 0],
+                 [0, 0, 1]])
   
   return Rz @ Ry @ Rx
 
 def get_torso_faces(pos, size, euler_angles=(0, 0, 0)):
   """
-  Returns the list of faces for a cuboid with the given position, size, and orientation.
+  Returns the Poly3DCollection representing a cuboid for the torso.
   
   Parameters:
-    pos: Tuple (x, y, z) for the lower corner (bottom face) of the cuboid.
-    size: Tuple (dx, dy, dz) giving the dimensions along x, y, and z.
+    pos: Tuple (x, y, z) for the lower corner of the cuboid.
+    size: Tuple (dx, dy, dz) dimensions.
     euler_angles: Tuple (roll, pitch, yaw) in radians.
   """
   x, y, z = pos
   dx, dy, dz = size
   
-  # Define the eight vertices of the cuboid based on the lower corner.
   vertices = np.array([
-    [x, y, z],             # 0: bottom face
-    [x + dx, y, z],        # 1
-    [x + dx, y + dy, z],   # 2
-    [x, y + dy, z],        # 3
-    [x, y, z + dz],        # 4: top face
-    [x + dx, y, z + dz],   # 5
-    [x + dx, y + dy, z + dz], # 6
-    [x, y + dy, z + dz]     # 7
+    [x, y, z],
+    [x + dx, y, z],
+    [x + dx, y + dy, z],
+    [x, y + dy, z],
+    [x, y, z + dz],
+    [x + dx, y, z + dz],
+    [x + dx, y + dy, z + dz],
+    [x, y + dy, z + dz]
   ])
-
-  # Define a pivot about which to rotate.
-  # Here we choose the center of the cuboid (center of its faces).
-  pivot = np.array([x + dx/2.0, y + dy/2.0, z + dz/2.0])
   
-  # Get the rotation matrix.
+  pivot = np.array([x + dx/2.0, y + dy/2.0, z + dz/2.0])
   R = euler_rotation_matrix(*euler_angles)
   
-  # Rotate each vertex about the pivot.
   rotated_vertices = []
   for v in vertices:
     rotated = R @ (v - pivot) + pivot
     rotated_vertices.append(rotated)
   rotated_vertices = np.array(rotated_vertices)
   
-  # Define six faces using the rotated vertices.
   faces = [
-    [rotated_vertices[0], rotated_vertices[1], rotated_vertices[2], rotated_vertices[3]],  # bottom face
-    [rotated_vertices[4], rotated_vertices[5], rotated_vertices[6], rotated_vertices[7]],  # top face
-    [rotated_vertices[0], rotated_vertices[1], rotated_vertices[5], rotated_vertices[4]],  # side face 1
-    [rotated_vertices[1], rotated_vertices[2], rotated_vertices[6], rotated_vertices[5]],  # side face 2
-    [rotated_vertices[2], rotated_vertices[3], rotated_vertices[7], rotated_vertices[6]],  # side face 3
-    [rotated_vertices[3], rotated_vertices[0], rotated_vertices[4], rotated_vertices[7]],  # side face 4
+    [rotated_vertices[0], rotated_vertices[1], rotated_vertices[2], rotated_vertices[3]],
+    [rotated_vertices[4], rotated_vertices[5], rotated_vertices[6], rotated_vertices[7]],
+    [rotated_vertices[0], rotated_vertices[1], rotated_vertices[5], rotated_vertices[4]],
+    [rotated_vertices[1], rotated_vertices[2], rotated_vertices[6], rotated_vertices[5]],
+    [rotated_vertices[2], rotated_vertices[3], rotated_vertices[7], rotated_vertices[6]],
+    [rotated_vertices[3], rotated_vertices[0], rotated_vertices[4], rotated_vertices[7]]
   ]
-
+  
   cuboid = Poly3DCollection(faces, facecolors='cyan', linewidths=1, edgecolors='r', alpha=1.)
   return cuboid
 
 def foot_vertices(center, length, width, angle):
+  """
+  Returns 3D vertices for a foot polygon given its center, dimensions, and rotation.
+  """
   cx, cy = center
   hl = length / 2.0
   hw = width / 2.0
@@ -84,85 +87,153 @@ def foot_vertices(center, length, width, angle):
     [-hl,  hw]
   ])
   R = np.array([[np.cos(angle), -np.sin(angle)],
-          [np.sin(angle),  np.cos(angle)]])
+                [np.sin(angle),  np.cos(angle)]])
   world_corners = np.dot(local_corners, R.T) + np.array([cx, cy])
   return [[pt[0], pt[1], 0] for pt in world_corners]
 
-def set_torso_pose(x, y, z, roll, pitch, yaw):
-  body_pos = (x, y, z)
-  euler_angles = (roll, pitch, yaw)
-  return body_pos, euler_angles
-
 def set_left_foot_pose(x, y, angle):
+  """
+  Returns the vertices of the left foot.
+  Computes the foot center using a predefined offset.
+  """
   center_floor = np.array([x, y])
   left_center = center_floor + np.array([0, foot_sep / 2.0])
-  left_foot = foot_vertices(left_center, foot_length, foot_width, angle)
-  return left_foot
+  return foot_vertices(left_center, foot_length, foot_width, angle)
 
 def set_right_foot_pose(x, y, angle):
+  """
+  Returns the vertices of the right foot.
+  Computes the foot center using a predefined offset.
+  """
   center_floor = np.array([x, y])
   right_center = center_floor - np.array([0, foot_sep / 2.0])
-  right_foot = foot_vertices(right_center, foot_length, foot_width, angle)
-  return right_foot
+  return foot_vertices(right_center, foot_length, foot_width, angle)
 
-def update(frame):
-  ax.clear()
-
-  # Time-dependent translation (forward motion).
-  t = frame / 10.0
-  x = t
-  y = t
-  z = 1 + 0.5*abs(np.sin(t))
-  body_pos = (x, y, z)
+def update_humanoid(torso_pos, torso_euler, left_foot_center, left_foot_angle, right_foot_center, right_foot_angle):
+  """
+  Updates the plot with the provided torso and feet poses.
   
-  # Dynamically update x-axis limits so the robot stays in view.
-  x_margin = 3
-  y_margin = 3
-  ax.set_xlim(x - x_margin, x + x_margin)
-  ax.set_ylim(y - y_margin, y + y_margin)
+  Parameters:
+    torso_pos: Tuple (x, y, z) position of the torso (lower corner).
+    torso_euler: Tuple (roll, pitch, yaw) in radians for the torso.
+    left_foot_center: Tuple (x, y) for the left foot center.
+    left_foot_angle: Rotation angle in radians for the left foot.
+    right_foot_center: Tuple (x, y) for the right foot center.
+    right_foot_angle: Rotation angle in radians for the right foot.
+  """
+  ax.clear()
+  x, y, z = torso_pos
+  margin = 3
+  ax.set_xlim(x - margin, x + margin)
+  ax.set_ylim(y - margin, y + margin)
   ax.set_zlim(0, 3)
   ax.set_xlabel('X')
   ax.set_ylabel('Y')
   ax.set_zlabel('Z')
   ax.set_title('3D Humanoid with Two Feet')
   
-  # Define Euler angles (roll, pitch, yaw) for the torso.
-  roll = t*0.1
-  pitch = t*0.1 
-  yaw = t*0.1
-  euler_angles = (roll, pitch, yaw)
-
-  cuboid = get_torso_faces(body_pos, body_size, euler_angles)
+  # Draw torso.
+  cuboid = get_torso_faces(torso_pos, body_size, torso_euler)
   ax.add_collection3d(cuboid)
-
-  left_foot = set_left_foot_pose(x + 0.2, y, 0)
-  right_foot = set_right_foot_pose(x, y, 0)
+  
+  # Draw feet.
+  left_foot = set_left_foot_pose(left_foot_center[0], left_foot_center[1], left_foot_angle)
+  right_foot = set_right_foot_pose(right_foot_center[0], right_foot_center[1], right_foot_angle)
+  
   left_foot_poly = Poly3DCollection([left_foot], facecolors='brown', linewidths=1, edgecolors='k', alpha=0.8)
   right_foot_poly = Poly3DCollection([right_foot], facecolors='brown', linewidths=1, edgecolors='k', alpha=0.8)
+  
   ax.add_collection3d(left_foot_poly)
   ax.add_collection3d(right_foot_poly)
   
-  # Draw a floor centered around the current x position.
-  floor_x = np.linspace(x - x_margin, x + x_margin, 2)
-  floor_y = np.linspace(y - y_margin, y+  y_margin, 2)
+  # Draw floor.
+  floor_x = np.linspace(x - margin, x + margin, 2)
+  floor_y = np.linspace(y - margin, y + margin, 2)
   floor_x, floor_y = np.meshgrid(floor_x, floor_y)
   floor_z = np.zeros_like(floor_x)
   ax.plot_surface(floor_x, floor_y, floor_z, alpha=0.2)
 
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-ax.set_xlim(-3, 3)
-ax.set_ylim(-3, 3)
-ax.set_zlim(0, 3)
-ax.set_xlabel('X')
-ax.set_ylabel('Y')
-ax.set_zlabel('Z')
-ax.set_title('3D Humanoid with Two Feet')
+def update_and_plot_humanoid(pose=None, pause_time=0):
+  """
+  Updates the plot with the provided pose and displays it.
+  
+  Each pose is a dictionary containing the keys:
+    'torso_pos': Tuple (x, y, z) for the torso (lower corner) position.
+    'torso_euler': Tuple (roll, pitch, yaw) in radians for the torso.
+    'left_foot_center': Tuple (x, y) for the left foot center.
+    'left_foot_angle': Rotation angle in radians for the left foot.
+    'right_foot_center': Tuple (x, y) for the right foot center.
+    'right_foot_angle': Rotation angle in radians for the right foot.
+    
+  If no pose is provided (i.e. pose is None), the previous pose is reused.
+  The pause_time is set to 0 (or near-zero) by default.
+  """
+  global fig, ax, last_pose
+  if pose is None:
+    if 'last_pose' in globals():
+      pose = last_pose
+    else:
+      # If no previous pose exists, do nothing.
+      return
+  else:
+    last_pose = pose
 
-body_size = (0.5, 0.3, 1.)  # width, depth, height
-foot_length = 0.4
-foot_width = 0.2
-foot_sep = 0.4
+  if 'fig' not in globals() or 'ax' not in globals():
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
 
-ani = animation.FuncAnimation(fig, update, frames=200, interval=50)
-plt.show()
+  update_humanoid(
+    pose['torso_pos'],
+    pose['torso_euler'],
+    pose['left_foot_center'], pose['left_foot_angle'],
+    pose['right_foot_center'], pose['right_foot_angle']
+  )
+  plt.draw()
+  # Use a very short pause to allow the plot to update.
+  plt.pause(pause_time if pause_time > 0 else 0.016)
+
+def animate_humanoid_demo():
+  """
+  Demo animation showing time-varying torso and feet poses.
+  
+  For each timestep, the torso moves forward with a changing orientation,
+  and the feet positions/angles are updated accordingly.
+  """
+  global fig, ax
+  fig = plt.figure()
+  ax = fig.add_subplot(111, projection='3d')
+  
+  def animate(frame):
+    # Time used to create dynamic example poses.
+    t = frame / 10.0
+    # Torso: use t for position and small rotation increments.
+    torso_pos = (t, t, 1 + 0.5 * abs(np.sin(t)))
+    torso_euler = (t*0.1, t*0.1, t*0.1)
+    # Feet: for demo, set foot centers relative to torso position.
+    left_foot_center = (t + 0.2, t)   # you can adjust as needed
+    right_foot_center = (t, t)
+    left_foot_angle = 0.1 * np.sin(t)
+    right_foot_angle = -0.1 * np.sin(t)
+    
+    update_humanoid(torso_pos, torso_euler, left_foot_center, left_foot_angle, right_foot_center, right_foot_angle)
+  
+  ani = animation.FuncAnimation(fig, animate, frames=200, interval=50)
+  plt.show()
+
+if __name__ == "__main__":
+
+  plt.ion()  # enable interactive mode
+  
+  for t in np.linspace(0, 10, 100):
+    demo_pose = {
+      'torso_pos': (t, t, 1 + 0.5 * abs(np.sin(t))),
+      'torso_euler': (t * 0.1, t * 0.1, t * 0.1),
+      'left_foot_center': (t + 0.2, t),
+      'left_foot_angle': 0.1 * np.sin(t),
+      'right_foot_center': (t, t),
+      'right_foot_angle': -0.1 * np.sin(t)
+    }
+    update_and_plot_humanoid(demo_pose)
+  
+  # animate_humanoid_demo()  # uncomment to run the animation demo
+  # plt.show()  # display the final plot window
