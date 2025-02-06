@@ -8,7 +8,6 @@ import matplotlib.animation as animation
 body_size = (0.3, 0.5, 1.)  # width, depth, height
 foot_length = 0.4
 foot_width = 0.2
-foot_sep = 0.4
 
 def euler_rotation_matrix(roll, pitch, yaw):
   """
@@ -98,7 +97,6 @@ def set_left_foot_pose(x, y, angle):
   """
   center_floor = np.array([x, y])
   left_first_vertice = center_floor
-  # + np.array([foot_length/2., foot_width/2.])
   return foot_vertices(left_first_vertice, foot_length, foot_width, angle)
 
 def set_right_foot_pose(x, y, angle):
@@ -108,10 +106,9 @@ def set_right_foot_pose(x, y, angle):
   """
   center_floor = np.array([x, y])
   right_first_vertice = center_floor
-  # + np.array([foot_length/2., foot_width/2.])
   return foot_vertices(right_first_vertice, foot_length, foot_width, angle)
 
-def draw_humanoid(torso_pos, torso_euler, left_foot_center, left_foot_angle, right_foot_center, right_foot_angle, is_static=True):
+def draw_humanoid(torso_pos, torso_euler, left_foot_center, left_foot_angle, right_foot_center, right_foot_angle, is_static=False):
   """
   Updates the plot with the provided torso and feet poses.
   
