@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.animation as animation
 
 # Global parameters.
-body_size = (0.5, 0.3, 1.)  # width, depth, height
+body_size = (0.3, 0.5, 1.)  # width, depth, height
 foot_length = 0.4
 foot_width = 0.2
 foot_sep = 0.4
@@ -38,8 +38,8 @@ def get_torso_faces(pos, size, euler_angles=(0, 0, 0)):
     size: Tuple (dx, dy, dz) dimensions.
     euler_angles: Tuple (roll, pitch, yaw) in radians.
   """
-  x, y, z = pos
   dx, dy, dz = size
+  x, y, z = pos - np.array([dx/2, dy/2, dz/2])
   
   vertices = np.array([
     [x, y, z],
@@ -97,8 +97,9 @@ def set_left_foot_pose(x, y, angle):
   Computes the foot center using a predefined offset.
   """
   center_floor = np.array([x, y])
-  left_center = center_floor
-  return foot_vertices(left_center, foot_length, foot_width, angle)
+  left_first_vertice = center_floor
+  # + np.array([foot_length/2., foot_width/2.])
+  return foot_vertices(left_first_vertice, foot_length, foot_width, angle)
 
 def set_right_foot_pose(x, y, angle):
   """
@@ -106,10 +107,11 @@ def set_right_foot_pose(x, y, angle):
   Computes the foot center using a predefined offset.
   """
   center_floor = np.array([x, y])
-  right_center = center_floor
-  return foot_vertices(right_center, foot_length, foot_width, angle)
+  right_first_vertice = center_floor
+  # + np.array([foot_length/2., foot_width/2.])
+  return foot_vertices(right_first_vertice, foot_length, foot_width, angle)
 
-def draw_humanoid(torso_pos, torso_euler, left_foot_center, left_foot_angle, right_foot_center, right_foot_angle):
+def draw_humanoid(torso_pos, torso_euler, left_foot_center, left_foot_angle, right_foot_center, right_foot_angle, is_static=True):
   """
   Updates the plot with the provided torso and feet poses.
   
@@ -120,12 +122,21 @@ def draw_humanoid(torso_pos, torso_euler, left_foot_center, left_foot_angle, rig
     left_foot_angle: Rotation angle in radians for the left foot.
     right_foot_center: Tuple (x, y) for the right foot center.
     right_foot_angle: Rotation angle in radians for the right foot.
+    is_static: Boolean flag. If True, the map remains a fixed 10m x 10m area,
+               allowing the robot to move within a static coordinate frame.
   """
   ax.clear()
-  x, y, z = torso_pos
-  margin = 3
-  ax.set_xlim(x - margin, x + margin)
-  ax.set_ylim(y - margin, y + margin)
+  # Set axis limits.
+  if is_static:
+    margin = 3  # static map extends from -5 to 5 in both x and y directions.
+    ax.set_xlim(-margin, margin)
+    ax.set_ylim(-margin, margin)
+  else:
+    x, y, z = torso_pos
+    margin = 3
+    ax.set_xlim(x - margin, x + margin)
+    ax.set_ylim(y - margin, y + margin)
+    
   ax.set_zlim(0, 3)
   ax.set_xlabel('X')
   ax.set_ylabel('Y')
@@ -143,23 +154,29 @@ def draw_humanoid(torso_pos, torso_euler, left_foot_center, left_foot_angle, rig
   left_foot_poly = Poly3DCollection([left_foot], facecolors='brown', linewidths=1, edgecolors='k', alpha=0.8)
   right_foot_poly = Poly3DCollection([right_foot], facecolors='brown', linewidths=1, edgecolors='k', alpha=0.8)
 
-  # Draw ground reaction force
-  left_fx=2.
-  left_fy=2. 
-  left_fz=40.
-  ax.quiver(left_foot[0][0] + foot_length/2., left_foot[0][1] + foot_width/2., 0, left_fx, left_fy, left_fz, color='r', length = 0.02)
+  # Draw ground reaction forces.
+  left_fx = 2.
+  left_fy = 2. 
+  left_fz = 40.
+  ax.quiver(left_foot_center[0], left_foot_center[1], 0, left_fx, left_fy, left_fz, color='r', length=0.02)
   
-  right_fx=3.
-  right_fy=1.
-  right_fz=30.
-  ax.quiver(right_foot[0][0] + foot_length/2., right_foot[0][1] + foot_width/2., 0, right_fx, right_fy, right_fz, color='r', length = 0.02)
+  right_fx = 3.
+  right_fy = 1.
+  right_fz = 30.
+  ax.quiver(right_foot_center[0], right_foot_center[1], 0, right_fx, right_fy, right_fz, color='r', length=0.02)
 
   ax.add_collection3d(left_foot_poly)
   ax.add_collection3d(right_foot_poly)
   
   # Draw floor.
-  floor_x = np.linspace(x - margin, x + margin, 2)
-  floor_y = np.linspace(y - margin, y + margin, 2)
+  if is_static:
+    floor_min, floor_max = -margin, margin
+  else:
+    x, y, _ = torso_pos
+    floor_min, floor_max = x - margin, x + margin
+  
+  floor_x = np.linspace(floor_min, floor_max, 2)
+  floor_y = np.linspace(floor_min, floor_max, 2)
   floor_x, floor_y = np.meshgrid(floor_x, floor_y)
   floor_z = np.zeros_like(floor_x)
   ax.plot_surface(floor_x, floor_y, floor_z, alpha=0.2)
@@ -179,15 +196,7 @@ def update_and_plot_humanoid(pose=None, pause_time=0):
   If no pose is provided (i.e. pose is None), the previous pose is reused.
   The pause_time is set to 0 (or near-zero) by default.
   """
-  global fig, ax, last_pose
-  if pose is None:
-    if 'last_pose' in globals():
-      pose = last_pose
-    else:
-      # If no previous pose exists, do nothing.
-      return
-  else:
-    last_pose = pose
+  global fig, ax
 
   if 'fig' not in globals() or 'ax' not in globals():
     fig = plt.figure()
