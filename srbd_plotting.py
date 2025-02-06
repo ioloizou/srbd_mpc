@@ -70,7 +70,7 @@ def get_torso_faces(pos, size, euler_angles=(0, 0, 0)):
     [rotated_vertices[3], rotated_vertices[0], rotated_vertices[4], rotated_vertices[7]]
   ]
   
-  cuboid = Poly3DCollection(faces, facecolors='cyan', linewidths=1, edgecolors='r', alpha=1.)
+  cuboid = Poly3DCollection(faces, facecolors='cyan', linewidths=1, edgecolors='r', alpha=0.7)
   return cuboid
 
 def foot_vertices(center, length, width, angle):
@@ -97,7 +97,7 @@ def set_left_foot_pose(x, y, angle):
   Computes the foot center using a predefined offset.
   """
   center_floor = np.array([x, y])
-  left_center = center_floor + np.array([0, foot_sep / 2.0])
+  left_center = center_floor
   return foot_vertices(left_center, foot_length, foot_width, angle)
 
 def set_right_foot_pose(x, y, angle):
@@ -106,10 +106,10 @@ def set_right_foot_pose(x, y, angle):
   Computes the foot center using a predefined offset.
   """
   center_floor = np.array([x, y])
-  right_center = center_floor - np.array([0, foot_sep / 2.0])
+  right_center = center_floor
   return foot_vertices(right_center, foot_length, foot_width, angle)
 
-def update_humanoid(torso_pos, torso_euler, left_foot_center, left_foot_angle, right_foot_center, right_foot_angle):
+def draw_humanoid(torso_pos, torso_euler, left_foot_center, left_foot_angle, right_foot_center, right_foot_angle):
   """
   Updates the plot with the provided torso and feet poses.
   
@@ -142,7 +142,18 @@ def update_humanoid(torso_pos, torso_euler, left_foot_center, left_foot_angle, r
   
   left_foot_poly = Poly3DCollection([left_foot], facecolors='brown', linewidths=1, edgecolors='k', alpha=0.8)
   right_foot_poly = Poly3DCollection([right_foot], facecolors='brown', linewidths=1, edgecolors='k', alpha=0.8)
+
+  # Draw ground reaction force
+  left_fx=2.
+  left_fy=2. 
+  left_fz=40.
+  ax.quiver(left_foot[0][0] + foot_length/2., left_foot[0][1] + foot_width/2., 0, left_fx, left_fy, left_fz, color='r', length = 0.02)
   
+  right_fx=3.
+  right_fy=1.
+  right_fz=30.
+  ax.quiver(right_foot[0][0] + foot_length/2., right_foot[0][1] + foot_width/2., 0, right_fx, right_fy, right_fz, color='r', length = 0.02)
+
   ax.add_collection3d(left_foot_poly)
   ax.add_collection3d(right_foot_poly)
   
@@ -182,7 +193,7 @@ def update_and_plot_humanoid(pose=None, pause_time=0):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
-  update_humanoid(
+  draw_humanoid(
     pose['torso_pos'],
     pose['torso_euler'],
     pose['left_foot_center'], pose['left_foot_angle'],
@@ -190,7 +201,7 @@ def update_and_plot_humanoid(pose=None, pause_time=0):
   )
   plt.draw()
   # Use a very short pause to allow the plot to update.
-  plt.pause(pause_time if pause_time > 0 else 0.016)
+  plt.pause(pause_time if pause_time > 0 else 0.0001)
 
 def animate_humanoid_demo():
   """
@@ -215,25 +226,25 @@ def animate_humanoid_demo():
     left_foot_angle = 0.1 * np.sin(t)
     right_foot_angle = -0.1 * np.sin(t)
     
-    update_humanoid(torso_pos, torso_euler, left_foot_center, left_foot_angle, right_foot_center, right_foot_angle)
+    draw_humanoid(torso_pos, torso_euler, left_foot_center, left_foot_angle, right_foot_center, right_foot_angle)
   
   ani = animation.FuncAnimation(fig, animate, frames=200, interval=50)
   plt.show()
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
-  plt.ion()  # enable interactive mode
+#   plt.ion()  # enable interactive mode
   
-  for t in np.linspace(0, 10, 100):
-    demo_pose = {
-      'torso_pos': (t, t, 1 + 0.5 * abs(np.sin(t))),
-      'torso_euler': (t * 0.1, t * 0.1, t * 0.1),
-      'left_foot_center': (t + 0.2, t),
-      'left_foot_angle': 0.1 * np.sin(t),
-      'right_foot_center': (t, t),
-      'right_foot_angle': -0.1 * np.sin(t)
-    }
-    update_and_plot_humanoid(demo_pose)
+#   for t in np.linspace(0, 10, 100):
+#     demo_pose = {
+#       'torso_pos': (t, t, 1 + 0.5 * abs(np.sin(t))),
+#       'torso_euler': (t * 0.1, t * 0.1, t * 0.1),
+#       'left_foot_center': (t + 0.2, t),
+#       'left_foot_angle': 0.1 * np.sin(t),
+#       'right_foot_center': (t, t),
+#       'right_foot_angle': -0.1 * np.sin(t)
+#     }
+#     update_and_plot_humanoid(demo_pose)
   
   # animate_humanoid_demo()  # uncomment to run the animation demo
   # plt.show()  # display the final plot window
