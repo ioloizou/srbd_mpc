@@ -18,8 +18,8 @@ class GaitPlanner:
         self.num_steps = num_steps
 
         # Initialize foot positions.
-        self.left_foot_pos = np.array([-step_width / 2, 0.0])
-        self.right_foot_pos = np.array([step_width / 2, 0.0])
+        self.left_foot_pos = np.array([0.0, -step_width])
+        self.right_foot_pos = np.array([0.0, step_width])
 
         self.current_time = 0.0
         self.phases = []  # List to store the planned phases
@@ -39,6 +39,7 @@ class GaitPlanner:
         # Now add single support phases, alternating support legs.
         for i in range(self.num_steps):
             support_leg = "left" if i % 2 == 0 else "right"
+            # Append the phase using the current foot positions.
             self.phases.append({
                 "start_time": self.current_time,
                 "end_time": self.current_time + self.single_support_time,
@@ -48,6 +49,16 @@ class GaitPlanner:
             })
             self.current_time += self.single_support_time
 
+            # Determine step increment.
+            step_increment = self.step_length if i == 0 else 2 * self.step_length
+
+            # Update the swing foot position based on the step_increment.
+            if support_leg == "left":
+                # Left is support; update right foot.
+                self.right_foot_pos += np.array([step_increment, 0.0])
+            elif support_leg == "right":
+                # Right is support; update left foot.
+                self.left_foot_pos += np.array([step_increment, 0.0])
         return self.phases
 
     def plot_gait(self):
