@@ -13,24 +13,39 @@ def get_poses(t, gait_phases):
     if phase is None:
         phase = gait_phases[-1]
 
-    # Torso pose is defined independent of the foot phases.
+    # Torso pose.
     pose = {
-        'torso_pos': (t * 0.1, t * 0.1, 1),
-        'torso_euler': (0.1 * t, 0.1 * t, 0.1 * t),
-        # GRFs (ground reaction forces)
+        'torso_pos': (t * 0.25, 0, 1. + 0.1*np.sin(t)),
+        'torso_euler': (0.1 * np.sin(t), 0.1 * np.sin(t), 0.1 * np.sin(t)),
+        # GRFs.
         'left_grf': (1 * np.sin(t), 1 * abs(np.sin(t)), 30 * abs(np.sin(t))),
         'right_grf': (2 * np.sin(t), 3 * abs(np.sin(t)), 20 * abs(np.sin(t)))
     }
 
-    # Include the foot only if it is in stance.
+    # For left foot in stance.
     if phase["support_leg"] in ["both", "left"]:
         pose["left_foot_center"] = phase["left_foot"]
         pose["left_foot_angle"] = 0
+
+        # Only compute adapted left footstep once.
+        if "adapted_left_footstep" not in phase:
+            adapted_offset = np.random.rand(2)*0.1
+            adapted_left = phase["left_foot"] + adapted_offset
+            phase["adapted_left_footstep"] = [{"foot_center": adapted_left.tolist(), "foot_angle": 0}]
+        pose["adapted_left_footstep"] = phase["adapted_left_footstep"]
+
+    # For right foot in stance.
     if phase["support_leg"] in ["both", "right"]:
         pose["right_foot_center"] = phase["right_foot"]
         pose["right_foot_angle"] = 0
 
-    # Print the footstep locations.
+        if "adapted_right_footstep" not in phase:
+            adapted_offset = np.random.rand(2)*0.1
+            adapted_right = phase["right_foot"] + adapted_offset
+            phase["adapted_right_footstep"] = [{"foot_center": adapted_right.tolist(), "foot_angle": 0}]
+        pose["adapted_right_footstep"] = phase["adapted_right_footstep"]
+
+    # Print footstep status.
     print("Time: ", t)
     if "left_foot_center" in pose:
         print("Left foot: ", pose["left_foot_center"])
@@ -47,7 +62,7 @@ def main():
     planner = GaitPlanner(0.5, 0.8, 0.3, 0.2, 10)
     gait_phases = planner.plan_gait()
 
-    visualizer = SRBDVisualizer(is_static=False)
+    visualizer = SRBDVisualizer(is_static=True)
     is_interactive = True
     if is_interactive:
         plt.ion()

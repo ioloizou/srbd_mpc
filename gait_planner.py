@@ -49,7 +49,7 @@ class GaitPlanner:
             })
             self.current_time += self.single_support_time
 
-            # Determine step increment.
+            # After the first step the step increment is doubled.
             step_increment = self.step_length if i == 0 else 2 * self.step_length
 
             # Update the swing foot position based on the step_increment.
@@ -109,7 +109,7 @@ class GaitPlanner:
 
 if __name__ == "__main__":
     # Parameters for the gait
-    double_support_time = 0.5   # seconds
+    double_support_time = 0.2   # seconds
     single_support_time = 0.8   # seconds per step
     step_length = 0.3           # meters forward per step
     step_width = 0.2            # lateral separation between the feet
