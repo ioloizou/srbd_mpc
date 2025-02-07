@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import matplotlib.animation as animation
+from matplotlib.patches import Rectangle
+from matplotlib.patches import Patch
 
 class SRBDVisualizer:
   def __init__(self, is_static=False):
@@ -246,30 +248,91 @@ class SRBDVisualizer:
     plt.draw()
     plt.pause(0.0001)
 
-# Example usage (if running this file directly):
-# if __name__ == '__main__':
-#     visualizer = SRBDVisualizer(is_static=False)
-#     def get_poses(t):
-#         # Example adapted footsteps for left and right
-#         adapted_left_steps = [
-#             {'foot_center': (t + 0.5, t - 0.5), 'foot_angle': 0.2}
-#         ]
-#         adapted_right_steps = [
-#             {'foot_center': (t + 1.0, t - 0.3), 'foot_angle': -0.1}
-#         ]
-#         return {
-#             'torso_pos': (t, t, 1),
-#             'torso_euler': (t * 0.1, t * 0.1, t * 0.1),
-#             'left_foot_center': (t + 0.4, t - 0.15),
-#             'left_foot_angle': 0,
-#             'right_foot_center': (t, t + 0.15),
-#             'right_foot_angle': 0,
-#             'adapted_left_footstep': adapted_left_steps,
-#             'adapted_right_footstep': adapted_right_steps
-#         }
-#     
-#     plt.ion()
-#     for t in np.linspace(0, 10, 100):
-#         visualizer.update_and_plot_humanoid(get_poses(t))
-#     plt.ioff()
-#     plt.show()
+  def plot_top_view(self, gait_phases, torso_pos):
+    """
+    Updates (or creates once) a 2D top view showing:
+      - Planned footsteps as rectangles (left: blue, right: red),
+      - Adapted footsteps as rectangles (both in green),
+      - Torso pivot point (COM) in magenta, and
+      - A line showing the history of the COM.
+    
+    Parameters:
+      gait_phases: List of gait phase dictionaries.
+      torso_pos: Tuple (x, y, z) for the torso's lower corner position (x, y used).
+    """
+    # Create top view figure/axis on first call; reuse on subsequent calls.
+    if not hasattr(self, "top_view_fig") or self.top_view_fig is None:
+        self.top_view_fig = plt.figure(figsize=(8, 6))
+        self.top_view_ax = self.top_view_fig.add_subplot(111)
+        plt.ion()  # interactive mode on
+    ax = self.top_view_ax
+    fig = self.top_view_fig
+
+    # Clear axis for update.
+    ax.clear()
+
+    # Axis limits
+    ax.set_xlim(-1, 5)
+    ax.set_ylim(-1, 1)
+    ax.set_xlabel("X (m)")
+    ax.set_ylabel("Y (m)")
+    ax.set_title("Top View: Planned & Adapted Footsteps and Torso COM")
+    ax.grid(True)
+
+    # Function to add a rectangle representing a foot.
+    def add_foot_rect(center, foot_angle, color):
+        # Use instance parameters for foot dimensions.
+        l = self.foot_length
+        w = self.foot_width
+        # Calculate lower-left corner from center.
+        lower_left = (center[0] - l/2.0, center[1] - w/2.0)
+        # Convert angle from radians to degrees.
+        angle_deg = np.degrees(foot_angle)
+        rect = Rectangle(lower_left, l, w, angle=angle_deg, edgecolor='black',
+                         facecolor=color, alpha=0.6)
+        ax.add_patch(rect)
+
+    # Draw all planned and adapted footsteps.
+    for phase in gait_phases:
+        # Planned left foot.
+        if phase["support_leg"] in ["both", "left"]:
+            center = phase["left_foot"][:2]
+            # Planned footsteps use the stored foot angle (here always 0).
+            add_foot_rect(center, 0, 'blue')
+            # Adapted left footsteps.
+            if "adapted_left_footstep" in phase:
+                for step in phase["adapted_left_footstep"]:
+                    add_foot_rect(step["foot_center"][:2], step.get("foot_angle", 0), 'green')
+        # Planned right foot.
+        if phase["support_leg"] in ["both", "right"]:
+            center = phase["right_foot"][:2]
+            add_foot_rect(center, 0, 'red')
+            # Adapted right footsteps.
+            if "adapted_right_footstep" in phase:
+                for step in phase["adapted_right_footstep"]:
+                    add_foot_rect(step["foot_center"][:2], step.get("foot_angle", 0), 'green')
+
+    # Compute and plot torso COM.
+    com_x = torso_pos[0] 
+    com_y = torso_pos[1]
+    ax.scatter(com_x, com_y, color='magenta', marker='*', s=50, label='COM')
+
+    # Update and plot the history of the COM.
+    if not hasattr(self, "com_history"):
+        self.com_history = []
+    self.com_history.append((com_x, com_y))
+    # Unzip history points
+    hx, hy = zip(*self.com_history)
+    ax.plot(hx, hy, color='magenta', label='COM History')
+
+    # Build legend based on patches and scatter.
+    handles = []
+    handles.append(Patch(facecolor='blue', edgecolor='black', label='Planned Left Foot'))
+    handles.append(Patch(facecolor='red', edgecolor='black', label='Planned Right Foot'))
+    handles.append(Patch(facecolor='green', edgecolor='black', label='Adapted Foot'))
+    handles.append(plt.Line2D([], [], marker='*', linestyle='None', color='magenta', markersize=7, label='Current COM'))
+    handles.append(plt.Line2D([], [], color='magenta', label='COM History'))
+    ax.legend(handles=handles, loc='upper right')
+
+    fig.canvas.draw()
+    fig.canvas.flush_events()

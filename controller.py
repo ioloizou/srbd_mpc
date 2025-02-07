@@ -15,7 +15,7 @@ def get_poses(t, gait_phases):
 
     # Torso pose.
     pose = {
-        'torso_pos': (t * 0.25, 0, 1. + 0.1*np.sin(t)),
+        'torso_pos': (t * 0.25, 0.05*np.sin(4*t) , 1. + 0.1*np.sin(t)),
         'torso_euler': (0.1 * np.sin(t), 0.1 * np.sin(t), 0.1 * np.sin(t)),
         # GRFs.
         'left_grf': (1 * np.sin(t), 1 * abs(np.sin(t)), 30 * abs(np.sin(t))),
@@ -64,6 +64,7 @@ def main():
 
     visualizer = SRBDVisualizer(is_static=True)
     is_interactive = True
+    
     if is_interactive:
         plt.ion()
         # Use the overall gait time span for visualization.
@@ -71,6 +72,9 @@ def main():
         for t in t_values:
             pose = get_poses(t, gait_phases)
             visualizer.update_and_plot_humanoid(pose)
+            
+            # Update the 2D top view in the same figure.
+            visualizer.plot_top_view(gait_phases, pose['torso_pos'])
         plt.ioff()
         plt.show()
     else:
