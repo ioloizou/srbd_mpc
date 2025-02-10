@@ -58,7 +58,7 @@ def main():
     planner = GaitPlanner(0.5, 0.8, 0.3, 0.2, 10)
     gait_phases = planner.plan_gait()
 
-    visualizer = SRBDVisualizer(is_static=True)
+    visualizer = SRBDVisualizer(is_static=False)
     
     # Create a time array from 0 to 8.5 s for 60 frames per second.
     t_frames = np.linspace(0, 8.5, 200)
@@ -71,14 +71,14 @@ def main():
         # Return an empty list (or any updated artists if needed).
         return []
 
-    # Animate the 2D figure at 60 fps.
-    ani = animation.FuncAnimation(visualizer.fig3d, animate, frames=t_frames, 
-                                  interval=5, blit=False, repeat=False)
+    # # Animate the 2D figure at 60 fps.
+    # ani = animation.FuncAnimation(visualizer.fig3d, animate, frames=t_frames, 
+    #                               interval=5, blit=False, repeat=False)
 
 
     # Animate the 2D figure at 60 fps.
-    # ani = animation.FuncAnimation(visualizer.fig2d, animate, frames=t_frames, 
-    #                               interval=100, blit=False, repeat=False)
+    ani = animation.FuncAnimation(visualizer.fig2d, animate, frames=t_frames, 
+                                  interval=100, blit=False, repeat=False)
 
     # Draw the figures.
     plt.show()
