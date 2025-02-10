@@ -19,8 +19,12 @@ class MPC:
     self.NUM_STATES = 13  
     self.NUM_CONTROLS = 3*self.LEGS
     self.NUM_BOUNDS = 5
-    # Inertia matrix of the body TO BE CHANGED
-    self.INERTIA_BODY = np.diag([0.065674966, 0.053535188, 0.030808125]) # kg*m^2 torso link of g1
+    # Inertia matrix of the body
+    self.INERTIA_BODY = np.array([
+      [3.20564,    4.35027e-05,  0.425526],
+      [4.35027e-05, 3.05015,     -0.00065082],
+      [0.425526,   -0.00065082,  0.552353]
+    ]) # kg*m^2
     # x = [roll, pitch, yaw, x, y, z, wx, wy, wz, vx, vy, vz]
     self.x = np.zeros((self.NUM_STATES, 1))
     # u = [f_left_x, f_left_y, f_left_z, f_right_x, f_right_y, f_right_z]
@@ -51,14 +55,9 @@ class MPC:
     self.x0 = np.zeros((self.NUM_STATES, 1))
     self.x_ref = np.zeros((self.NUM_STATES, 1))
     self.u_ref = np.zeros((self.NUM_CONTROLS, 1))
-    self.u_min = np.zeros((self.NUM_CONTROLS, 1))
-    self.u_max = np.zeros((self.NUM_CONTROLS, 1))
-    self.x_min = np.zeros((self.NUM_STATES, 1))
-    self.x_max = np.zeros((self.NUM_STATES, 1))
     self.u_opt = np.zeros((self.NUM_CONTROLS, self.HORIZON_LENGTH))
     self.x_opt = np.zeros((self.NUM_STATES, self.HORIZON_LENGTH))
     self.u_opt0 = np.zeros((self.NUM_CONTROLS, 1))
-    self.x_opt0 = np.zeros((self.NUM_STATES, 1))
 
   def extract_psi(self, x_ref):
     # Extract the average yaw angle from the reference trajectory
@@ -87,7 +86,7 @@ class MPC:
     for i in range(self.HORIZON_LENGTH):
       self.R[i*self.NUM_CONTROLS:(i+1)*self.NUM_CONTROLS, i*self.NUM_CONTROLS:(i+1)*self.NUM_CONTROLS] = self.R
   
-  def calculate_A_contrinuous(self):
+  def calculate_A_continuous(self):
     # Calculate the continuous A matrix
     
     # Populate the A matrix
@@ -111,7 +110,7 @@ class MPC:
 
     assert self.A_discrete.shape == (self.NUM_STATES, self.NUM_STATES)
     
-  def calculate_B_continous(self, c_horizon, p_com_horizon):
+  def calculate_B_continuous(self, c_horizon, p_com_horizon):
 
     INERTIA_WORLD = self.rotation_z @ self.INERTIA_BODY @ self.rotation_z.T
     

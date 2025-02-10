@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.animation as animation
 from srbd_plotting import SRBDVisualizer
 from gait_planner import GaitPlanner
+import mpc
 
 def get_poses(t, gait_phases):
     # Find the current gait phase based on time.
@@ -53,7 +54,7 @@ def get_poses(t, gait_phases):
         print("Right foot: Swing")
     return pose
 
-def main():
+def plot():
     # Initialize the gait planner.
     planner = GaitPlanner(0.5, 0.8, 0.3, 0.2, 10)
     gait_phases = planner.plan_gait()
@@ -82,6 +83,45 @@ def main():
 
     # Draw the figures.
     plt.show()
+
+def main():
+    
+    # plot()
+
+    SRBD_mpc = mpc.MPC()
+    
+    # Create the reference trajectory for MPC.
+    dt = SRBD_mpc.dt
+    horizon = SRBD_mpc.horizon
+    state_dim = SRBD_mpc.NUM_STATES    
+    
+    # Initialize x_ref as zeros.
+    x_ref = np.zeros((horizon, state_dim))
+    
+    # Construct the trajectory:
+    # - Position starts at 0,0,0. The x position increases linearly with the commanded vx=1 m/s.
+    # - Orientation remains 0,0,0.
+    # - All velocities are zero initially except for the x velocity, which is 1 m/s.
+    for i in range(horizon):
+        pos = i * dt
+        x_ref[i, 0] = pos         # x position: 1 m/s * t
+        x_ref[i, 6] = 1         # vx: constant 1 m/s
+
+    
+    c_horizon = 
+    p_com_horizon =
+    SRBD_mpc.init_matrices()
+    SRBD_mpc.extract_psi(x_ref)
+    SRBD_mpc.set_Q()
+    SRBD_mpc.set_R()
+    SRBD_mpc.calculate_A_continuous()
+    SRBD_mpc.calculate_A_discrete()
+    SRBD_mpc.calculate_B_continuous()
+
+
+
+
+
 
 if __name__ == '__main__':
     main()
