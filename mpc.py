@@ -9,10 +9,10 @@ import time
 # MPC class
 class MPC:
   # Constructor
-  def __init__(self, mu=0.3, fz_min = 10, fz_max = 666, dt = 0.03, HORIZON_LENGTH = 10):
+  def __init__(self, mu=0.3, fz_min = 10, fz_max = 666, dt = 0.04, HORIZON_LENGTH = 10):
     # Initialize the MPC class
     self.g = -9.81 # m/s^2 Gravity
-    self.robot_mass = 10 # kg TO BE CHANGED
+    self.robot_mass = 35 # kg
     self.dt = dt # seconds 
     self.LEGS = 2 # Number of legs
     self.HORIZON_LENGTH = HORIZON_LENGTH # Number of nodes in the MPC horizon
@@ -20,15 +20,15 @@ class MPC:
     self.NUM_CONTROLS = 3*self.LEGS
     self.NUM_BOUNDS = 5
     # Inertia matrix of the body TO BE CHANGED
-    self.INERTIA_BODY = np.diag([0.1, 0.1, 0.1]) # kg*m^2
-    # x = [roll, pitch, yaw, x, y, z, vx, vy, vz, wx, wy, wz]
+    self.INERTIA_BODY = np.diag([0.065674966, 0.053535188, 0.030808125]) # kg*m^2 torso link of g1
+    # x = [roll, pitch, yaw, x, y, z, wx, wy, wz, vx, vy, vz]
     self.x = np.zeros((self.NUM_STATES, 1))
     # u = [f_left_x, f_left_y, f_left_z, f_right_x, f_right_y, f_right_z]
     self.u = np.zeros((self.NUM_CONTROLS, 1))
     # NEED TO CHANGE WEIGHTS
     # The last weight is for the gravity term
-    self.q_weights = np.diag([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0])
-    self.r_weights = np.diag([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
+    self.q_weights = np.diag([750, 75, 1250, 8e2, 2e3, 3e4, 8e2, 2e3, 3e4, 5e2, 5e3, 5e2, 0]) # Weights from MIT humanoid orientation aware
+    self.r_weights = np.diag([0.01, 0.01, 0.1, 0.01, 0.01, 0.1])
     self.mu = mu # Coefficient of friction
     self.fz_min = fz_min # Newton, Minimum normal force
     self.fz_max = fz_max # Newton, Maximum normal force
