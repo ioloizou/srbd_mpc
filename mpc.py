@@ -19,7 +19,7 @@ class MPC:
     self.NUM_STATES = 13  
     self.NUM_CONTROLS = 3*self.LEGS
     self.NUM_BOUNDS = 5
-    # Inertia matrix of the body
+    # Inertia matrix of the G1 through pinocchio in home configuration
     self.INERTIA_BODY = np.array([
       [3.20564,    4.35027e-05,  0.425526],
       [4.35027e-05, 3.05015,     -0.00065082],
@@ -29,7 +29,6 @@ class MPC:
     self.x = np.zeros((self.NUM_STATES, 1))
     # u = [f_left_x, f_left_y, f_left_z, f_right_x, f_right_y, f_right_z]
     self.u = np.zeros((self.NUM_CONTROLS, 1))
-    # NEED TO CHANGE WEIGHTS
     # The last weight is for the gravity term
     self.q_weights = np.diag([750, 75, 1250, 8e2, 2e3, 3e4, 8e2, 2e3, 3e4, 5e2, 5e3, 5e2, 0]) # Weights from MIT humanoid orientation aware
     self.r_weights = np.diag([0.01, 0.01, 0.1, 0.01, 0.01, 0.1])
@@ -52,6 +51,7 @@ class MPC:
     self.R = np.zeros((self.NUM_CONTROLS*self.HORIZON_LENGTH, self.NUM_CONTROLS*self.HORIZON_LENGTH))
     self.Ac = np.zeros((5 * self.LEGS * self.HORIZON_LENGTH, self.NUM_CONTROLS * self.HORIZON_LENGTH))
     self.Hessian = self.Bqp.T @ self.Q @ self.Bqp + self.R
+    self.rotation_z = np.zeros((3, 3))
     self.x0 = np.zeros((self.NUM_STATES, 1))
     self.x_ref = np.zeros((self.NUM_STATES, 1))
     self.u_ref = np.zeros((self.NUM_CONTROLS, 1))
@@ -63,8 +63,10 @@ class MPC:
     # Extract the average yaw angle from the reference trajectory
     yaw_sum = 0
     for i in range(self.HORIZON_LENGTH):
-      yaw_sum += x_ref[2, i]
+      yaw_sum += x_ref[i, 2]
     self.psi = yaw_sum / self.HORIZON_LENGTH
+    print("yaw sum:", yaw_sum)
+    return self.psi
 
   def vector_to_skew_symmetric_matrix(self, v):
     # Convert a vector to a skew symmetric matrix
@@ -72,19 +74,19 @@ class MPC:
                      [v[2], 0, -v[0]], 
                      [-v[1], v[0], 0]])
   
-  def rotation_matrix_T(self, psi):
+  def rotation_matrix_T(self):
     # Rotation matrix
-    self.rotation_z = np.array([[np.cos(psi), -np.sin(psi), 0], 
-                                [np.sin(psi), np.cos(psi), 0], 
+    self.rotation_z = np.array([[np.cos(self.psi), -np.sin(self.psi), 0], 
+                                [np.sin(self.psi), np.cos(self.psi), 0], 
                                 [0, 0, 1]])
 
   def set_Q(self):
     for i in range(self.HORIZON_LENGTH):
-      self.Q[i*self.NUM_STATES:(i+1)*self.NUM_STATES, i*self.NUM_STATES:(i+1)*self.NUM_STATES] = self.Q
+      self.Q[i*self.NUM_STATES:(i+1)*self.NUM_STATES, i*self.NUM_STATES:(i+1)*self.NUM_STATES] = self.q_weights.copy()
 
   def set_R(self):
     for i in range(self.HORIZON_LENGTH):
-      self.R[i*self.NUM_CONTROLS:(i+1)*self.NUM_CONTROLS, i*self.NUM_CONTROLS:(i+1)*self.NUM_CONTROLS] = self.R
+      self.R[i*self.NUM_CONTROLS:(i+1)*self.NUM_CONTROLS, i*self.NUM_CONTROLS:(i+1)*self.NUM_CONTROLS] = self.r_weights.copy()
   
   def calculate_A_continuous(self):
     # Calculate the continuous A matrix
@@ -103,7 +105,7 @@ class MPC:
   
   def calculate_A_discrete(self):
     # Calculate the discrete A matrix
-    self.A_discrete = np.eye(12) + self.A_continuous * self.dt
+    self.A_discrete = np.eye(13) + self.A_continuous * self.dt
     
     # print("A_discrete: \n", self.A_discrete)
     # print("A_discrete Shape: \n", self.A_discrete.shape)
@@ -113,11 +115,14 @@ class MPC:
   def calculate_B_continuous(self, c_horizon, p_com_horizon):
 
     INERTIA_WORLD = self.rotation_z @ self.INERTIA_BODY @ self.rotation_z.T
-    
+    det = np.linalg.det(self.INERTIA_BODY)
+
+    print("Determinant:", det)
+
     for i in range(self.HORIZON_LENGTH):
       for j in range(self.LEGS):
         # Vector from the center of mass to the contact point NEED TO CHECK THE FRAME
-        r = c_horizon[i] - p_com_horizon[i]
+        r = c_horizon[i, j] - p_com_horizon[i]
         r_skew = self.vector_to_skew_symmetric_matrix(r)
         self.B_continuous[6:9, 3*j:(3*j+3)] = np.linalg.inv(INERTIA_WORLD) @ r_skew
         self.B_continuous[9:12, 3*j:(3*j+3)] = np.eye(3)/self.robot_mass
@@ -133,7 +138,7 @@ class MPC:
   def calculate_Aqp(self):
     for i in range(self.HORIZON_LENGTH):
       if i==0:
-        self.Aqp[0:12, 0:12] = self.A_discrete
+        self.Aqp[0:13, 0:13] = self.A_discrete.copy()
       else:
         self.Aqp[i*self.NUM_STATES:(i+1)*self.NUM_STATES, 0:self.NUM_STATES] = self.Aqp[(i-1)*self.NUM_STATES:i*self.NUM_STATES, 0:self.NUM_STATES] @ self.A_discrete
 
@@ -219,7 +224,7 @@ class MPC:
     self.Hessian = self.Bqp.T @ self.Q @ self.Bqp + self.R
   
   def calculate_gradient(self):
-    self.gradient = self.Bqp.T @ self.Q @ (self.Aqp @ self.x0 - self.x_ref) 
+    self.gradient = self.Bqp.T @ self.Q @ (self.Aqp @ self.x0) - self.x_ref 
     # + self.R @ self.u_ref
    
 
@@ -256,5 +261,5 @@ class MPC:
       self.x_opt[:, i] = self.A_discrete @ self.x_opt[:, i-1] + self.B_discrete_hor[(i-1)*self.NUM_STATES:i*self.NUM_STATES, 0:self.NUM_CONTROLS] @ self.u_opt[:, i-1]
       self.u_opt[:, i] = self.u_opt[:, i-1]
 
-    # print("x_opt: \n", self.x_opt)
-    # print("u_opt: \n", self.u_opt)
+    print("x_opt: \n", self.x_opt)
+    print("u_opt: \n", self.u_opt)

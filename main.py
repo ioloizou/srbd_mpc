@@ -89,10 +89,14 @@ def main():
     # plot()
 
     SRBD_mpc = mpc.MPC()
+    planner = GaitPlanner(0.5, 0.8, 0.3, 0.2, 10)
+    gait_phases = planner.plan_gait()
+    # print("Gait phases shape:", np.array(gait_phases).shape)
+    # print("Gait phases:", gait_phases)
     
     # Create the reference trajectory for MPC.
     dt = SRBD_mpc.dt
-    horizon = SRBD_mpc.horizon
+    horizon = SRBD_mpc.HORIZON_LENGTH
     state_dim = SRBD_mpc.NUM_STATES    
     
     # Initialize x_ref as zeros.
@@ -104,19 +108,70 @@ def main():
     # - All velocities are zero initially except for the x velocity, which is 1 m/s.
     for i in range(horizon):
         pos = i * dt
-        x_ref[i, 0] = pos         # x position: 1 m/s * t
-        x_ref[i, 6] = 1         # vx: constant 1 m/s
+        x_ref[i, 3] = pos         # x position: 1 m/s * t
+        x_ref[i, 5] = 1         # vx: constant 1 m/s
 
+    # Build the c_horizon vector for the current MPC horizon based on time progression.
+    dt = SRBD_mpc.dt
+    horizon = SRBD_mpc.HORIZON_LENGTH
+    current_time = 0.0  # This should be updated each MPC solve if needed.
+
+    c_horizon = []
+    contact_horizon = []
+    for i in range(horizon):
+        t_i = current_time + i * dt
+        # Find the gait phase corresponding to t_i.
+        phase = None
+        for ph in gait_phases:
+            if ph["start_time"] <= t_i < ph["end_time"]:
+                phase = ph
+                break
+        if phase is None:
+            phase = gait_phases[-1]
+
+        left = phase["left_foot"]
+        right = phase["right_foot"]
+        foot_vec = np.concatenate((left, right), axis=0)
+        c_horizon.append(foot_vec)
+
+        # Define contact: 1 if foot is in stance, 0 if in swing.
+        left_contact = 1 if phase["support_leg"] in ["both", "left"] else 0
+        right_contact = 1 if phase["support_leg"] in ["both", "right"] else 0
+        contact_horizon.append([left_contact, right_contact])
+        
+    c_horizon = np.array(c_horizon)
+    print("c_horizon:", c_horizon)
     
-    c_horizon = 
-    p_com_horizon =
+    contact_horizon = np.array(contact_horizon)
+    print("contact_horizon:", contact_horizon)
+
+    p_com_horizon = x_ref[:, 3:6]
+    # print("p_com_horizon:", p_com_horizon)
+    
     SRBD_mpc.init_matrices()
+    
+    SRBD_mpc.x0 = x_ref[0]
+    
     SRBD_mpc.extract_psi(x_ref)
+    print("psi in degrees:", np.degrees(SRBD_mpc.psi))
+    SRBD_mpc.rotation_matrix_T()
+    print("Rotation Matrix: \n", SRBD_mpc.rotation_z)
     SRBD_mpc.set_Q()
     SRBD_mpc.set_R()
     SRBD_mpc.calculate_A_continuous()
     SRBD_mpc.calculate_A_discrete()
-    SRBD_mpc.calculate_B_continuous()
+    SRBD_mpc.calculate_B_continuous(c_horizon, p_com_horizon)
+    SRBD_mpc.calculate_B_discrete()
+    SRBD_mpc.calculate_Aqp()
+    SRBD_mpc.calculate_Bqp()
+    SRBD_mpc.calculate_Ac()
+    SRBD_mpc.calculate_bounds(contact_horizon)
+    SRBD_mpc.calculate_hessian()
+    SRBD_mpc.calculate_gradient()
+    SRBD_mpc.solve_qp()
+
+    SRBD_mpc.compute_rollout()
+
 
 
 
