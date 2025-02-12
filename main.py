@@ -85,6 +85,7 @@ def plot():
     plt.show()
 
 
+
 def dummy_standing_quad(SRBD_mpc):
     # Define constant foot positions for the whole horizon.
     # 1st foot (front left):  0.2,  0.2
@@ -92,7 +93,7 @@ def dummy_standing_quad(SRBD_mpc):
     # 3rd foot (rear left):  -0.2,  0.2
     # 4th foot (rear right): -0.2, -0.2
     # Here, we pack the positions as a single row:
-    foot_positions = np.array([0.2, 0.2, 0., 0.2, -0.2, 0., -0.2, 0.2, 0., -0.2, -0.2, 0.])
+    foot_positions = np.array([0.2, 0.2, 0., 0.2, -0.2, 0., -0.2, 0.2, 0., -0.2, -0.2, 0.])*4.
     
     # For each time step in the horizon, use the same foot positions.
     c_horizon = np.tile(foot_positions, (SRBD_mpc.HORIZON_LENGTH, 1))
@@ -108,8 +109,6 @@ def dummy_standing_quad(SRBD_mpc):
     # print(contact_horizon)
 
     return c_horizon, contact_horizon
-    
-         
 
 def main():
     
@@ -119,28 +118,22 @@ def main():
     # planner = GaitPlanner(0.5, 0.8, 0.3, 0.2, 10)
     # planner = GaitPlanner(0.1, 0.1, 0.3, 0.2, 10)
     # gait_phases = planner.plan_gait()
-
-
-    # print("Gait phases shape:", np.array(gait_phases).shape)
-    # print("Gait phases:", gait_phases)
     
     SRBD_mpc.init_matrices()
    
-    # Initialize x_ref as zeros.
-    x_ref = np.zeros((SRBD_mpc.HORIZON_LENGTH, SRBD_mpc.NUM_STATES))
-    # print(SRBD_mpc.NUM_STATES)
-    # exit()
-    x_ref[:, -1] = SRBD_mpc.g
-    x_ref[:, 5] = 1     # z position: constant 1 m
-    x_ref[:, 6] = 1      # x velocity: constant 1 m/s
+    # Initialize SRBD_mpc.x_ref_hor as zeros.
+    SRBD_mpc.x_ref_hor = np.zeros((SRBD_mpc.HORIZON_LENGTH, SRBD_mpc.NUM_STATES))
+
+    SRBD_mpc.x_ref_hor[:, -1] = SRBD_mpc.g
+    SRBD_mpc.x_ref_hor[:, 5] = 1.     # z position: constant 1 m
+    # SRBD_mpc.x_ref_hor[:, 6] = 1      # x velocity: constant 1 m/s
     
 
     
     current_time = 0.0
-    total_duration = 0.07
+    total_duration = 20.
     # total_duration = gait_phases[-1]["end_time"]
 
-    # List to store center of mass (COM) rollout at each MPC iteration.
     com_hist = []
 
     while current_time < total_duration:
@@ -149,18 +142,17 @@ def main():
         
 
         if current_time == 0.0:
-            SRBD_mpc.x0 = x_ref[0].copy()
+            # I should be carefull here i was giving initial velocity as 1 m/s
+            SRBD_mpc.x0 = SRBD_mpc.x_ref_hor[0].copy()
         else:
-            SRBD_mpc.x0 = SRBD_mpc.x_opt[0].copy()
+            SRBD_mpc.x0 = SRBD_mpc.x_opt[-1].copy()
             print("x0:", SRBD_mpc.x0)
 
         # Construct the trajectory relative to the current time:
         # - x position increases linearly based on current_time
-        # - Orientation remains 0,0,0.
-        # - Set x velocity to 1 m/s.
-        for i in range(SRBD_mpc.HORIZON_LENGTH):
-            t_i = current_time + i * dt
-            x_ref[i, 3] = t_i    # x position: 1 m/s * (current time + t_offset)
+        # for i in range(SRBD_mpc.HORIZON_LENGTH):
+        #     t_i = current_time + i * dt
+        #     SRBD_mpc.x_ref_hor[i, 3] = t_i    # x position: 1 m/s * (current time + t_offset)
              
         
         # c_horizon = []
@@ -192,14 +184,11 @@ def main():
         # contact_horizon = np.array(contact_horizon)
         # # print("contact_horizon:", contact_horizon)
 
-        p_com_horizon = x_ref[:, 3:6].copy()
-
+        p_com_horizon = SRBD_mpc.x_ref_hor[:, 3:6].copy()
         c_horizon, contact_horizon = dummy_standing_quad(SRBD_mpc)
 
-        SRBD_mpc.extract_psi(x_ref)
-        # print("psi in degrees:", np.degrees(SRBD_mpc.psi))
+        SRBD_mpc.extract_psi()
         SRBD_mpc.rotation_matrix_T()
-        # print("Rotation Matrix: \n", SRBD_mpc.rotation_z)
         SRBD_mpc.set_Q()
         SRBD_mpc.set_R()
         SRBD_mpc.calculate_A_continuous()
@@ -230,7 +219,7 @@ def main():
         
         # Store the first state of the rollout (i.e. the current COM)
         com_hist.append(SRBD_mpc.x_opt[0, 3:6].copy())
-        # com_hist.append(x_ref[0, 3:6].copy())
+        # com_hist.append(SRBD_mpc.x_ref_hor[0, 3:6].copy())
         
         current_time += dt
 

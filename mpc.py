@@ -34,7 +34,7 @@ class MPC:
     self.u = np.zeros((self.NUM_CONTROLS, 1))
     
     # The last weight is for the gravity term
-    self.q_weights = np.diag([750, 75, 1250, 8e2, 2e3, 3e4, 8e2, 2e3, 3e4, 5e2, 5e3, 5e2, 0]) # Weights from MIT humanoid orientation aware
+    self.q_weights = np.diag([750, 75, 1250, 8e6, 2e6, 3e6, 8e2, 2e3, 3e4, 5e4, 5e4, 5e4, 0]) # Weights from MIT humanoid orientation aware
     self.r_weights = np.diag([0.01, 0.01, 0.1, 0.01, 0.01, 0.1, 0.01, 0.01, 0.1, 0.01, 0.01, 0.1])
     self.mu = mu # Coefficient of friction
     self.fz_min = fz_min # Newton, Minimum normal force
@@ -67,11 +67,11 @@ class MPC:
     self.x_opt = np.zeros((self.HORIZON_LENGTH, self.NUM_STATES))
     self.u_opt0 = np.zeros((self.NUM_CONTROLS, 1))
 
-  def extract_psi(self, x_ref):
+  def extract_psi(self):
     # Extract the average yaw angle from the reference trajectory
     yaw_sum = 0
     for i in range(self.HORIZON_LENGTH):
-      yaw_sum += x_ref[i, 2]
+      yaw_sum += self.x_ref_hor[i, 2]
     self.psi = yaw_sum / self.HORIZON_LENGTH
     # print("yaw sum:", yaw_sum)
     return self.psi
@@ -129,6 +129,8 @@ class MPC:
       for j in range(self.LEGS):
         # Vector from the center of mass to the contact point NEED TO CHECK THE FRAME
 
+        # print("c_horizon: \n", c_horizon[i, 3*j:3*j+3]) 
+        # print("p_com_horizon: \n", p_com_horizon[i, :])
         r = c_horizon[i, 3*j:3*j+3] - p_com_horizon[i, :]
         print("r: \n", r)
         r_skew = self.vector_to_skew_symmetric_matrix(r)
@@ -172,6 +174,17 @@ class MPC:
             self.Bqp[i*self.NUM_STATES:(i+1)*self.NUM_STATES, j*self.NUM_CONTROLS:(j+1)*self.NUM_CONTROLS] = \
             self.Aqp[(i-j-1)*self.NUM_STATES:(i-j)*self.NUM_STATES, 0:self.NUM_STATES] @ self.B_discrete_hor[j*self.NUM_STATES:(j+1)*self.NUM_STATES, 0:self.NUM_CONTROLS]
     
+    # np.set_printoptions(threshold=np.inf, linewidth=np.inf, precision=2, suppress=True)
+    # print("Bqp: \n", self.Bqp[:, 60:])
+    # print("Bqp shape: \n", self.Bqp.shape)
+
+
+
+    # if np.allclose(self.Bqp, np.tril(self.Bqp)):
+    #   print("Bqp is lower triangular.")
+    # else:
+    #   print("Bqp is not lower triangular.")
+    
     assert self.Bqp.shape == (self.NUM_STATES * self.HORIZON_LENGTH, self.NUM_CONTROLS * self.HORIZON_LENGTH)
 
   def calculate_Ac(self):
@@ -198,8 +211,8 @@ class MPC:
       # np.set_printoptions(threshold=np.inf)
       # np.set_printoptions(linewidth=np.inf)
       # print(self.Ac.todense())
+      # print("Ac shape: \n", self.Ac.shape)
       # exit()
-      print("Ac shape: \n", self.Ac.shape)
       assert self.Ac.shape == (expected_rows, expected_cols)
 
   def calculate_bounds(self, contact):
@@ -240,6 +253,7 @@ class MPC:
     np.set_printoptions(linewidth=np.inf)
     
     expected_length = self.HORIZON_LENGTH * self.LEGS * self.NUM_BOUNDS
+
     assert self.lower_bounds_horizon.shape == (expected_length,)
     assert self.upper_bounds_horizon.shape == (expected_length,)
 
@@ -252,14 +266,14 @@ class MPC:
     # print("Bqp: \n", self.Bqp.shape)
     # print("Q: \n", self.Q.shape)
     # print("R: \n", self.R.shape)
-    # Single column vector stacked along the horizon
-    self.x_ref_hor = self.x_ref_hor.reshape((self.NUM_STATES * self.HORIZON_LENGTH, 1))
+    # Create a flattened version for gradient computation while preserving x_ref_hor's original shape
+    self.x_ref_hor_vec = self.x_ref_hor.reshape((self.NUM_STATES * self.HORIZON_LENGTH, 1))
     self.x0 = self.x0.reshape((self.NUM_STATES, 1)) # If i dont reshape i have math problem
     print("Gradient x0: \n", self.x0)
     # print("x_ref_hor: \n", self.x_ref_hor.shape)
     
 
-    self.gradient = self.Bqp.T @ self.Q @ ((self.Aqp @ self.x0) - self.x_ref_hor) 
+    self.gradient = self.Bqp.T @ self.Q @ ((self.Aqp @ self.x0) - self.x_ref_hor_vec) 
     # + self.R @ self.*self.HORIZON_LENGTHu_ref
 
     # print(((self.Aqp@self.x0)).shape)
@@ -334,3 +348,5 @@ class MPC:
 
     print("x_opt: \n", self.x_opt)
     print("u_opt: \n", self.u_opt)
+    # I need a print to check the total force on the robot
+    print("Total force on the robot: \n", np.sum(self.u_opt, axis=1))
