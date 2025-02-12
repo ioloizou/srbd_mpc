@@ -84,98 +84,169 @@ def plot():
     # Draw the figures.
     plt.show()
 
+
+def dummy_standing_quad(SRBD_mpc):
+    # Define constant foot positions for the whole horizon.
+    # 1st foot (front left):  0.2,  0.2
+    # 2nd foot (front right): 0.2, -0.2
+    # 3rd foot (rear left):  -0.2,  0.2
+    # 4th foot (rear right): -0.2, -0.2
+    # Here, we pack the positions as a single row:
+    foot_positions = np.array([0.2, 0.2, 0., 0.2, -0.2, 0., -0.2, 0.2, 0., -0.2, -0.2, 0.])
+    
+    # For each time step in the horizon, use the same foot positions.
+    c_horizon = np.tile(foot_positions, (SRBD_mpc.HORIZON_LENGTH, 1))
+    
+    # All contacts are active (1 indicates foot in stance).
+    # Four foot contacts for each time step.
+    contact_horizon = np.ones((SRBD_mpc.HORIZON_LENGTH, 4))
+    
+    # For debugging or further processing.
+    # print("Dummy standing quad - c_horizon:")
+    # print(c_horizon)
+    # print("Dummy standing quad - contact_horizon:")
+    # print(contact_horizon)
+
+    return c_horizon, contact_horizon
+    
+         
+
 def main():
     
     # plot()
 
     SRBD_mpc = mpc.MPC()
-    planner = GaitPlanner(0.5, 0.8, 0.3, 0.2, 10)
-    gait_phases = planner.plan_gait()
+    # planner = GaitPlanner(0.5, 0.8, 0.3, 0.2, 10)
+    # planner = GaitPlanner(0.1, 0.1, 0.3, 0.2, 10)
+    # gait_phases = planner.plan_gait()
+
+
     # print("Gait phases shape:", np.array(gait_phases).shape)
     # print("Gait phases:", gait_phases)
     
-    # Create the reference trajectory for MPC.
-    dt = SRBD_mpc.dt
-    horizon = SRBD_mpc.HORIZON_LENGTH
-    state_dim = SRBD_mpc.NUM_STATES    
-    
-    # Initialize x_ref as zeros.
-    x_ref = np.zeros((horizon, state_dim))
-    
-    # Construct the trajectory:
-    # - Position starts at 0,0,0. The x position increases linearly with the commanded vx=1 m/s.
-    # - Orientation remains 0,0,0.
-    # - All velocities are zero initially except for the x velocity, which is 1 m/s.
-    for i in range(horizon):
-        pos = i * dt
-        x_ref[i, 3] = pos         # x position: 1 m/s * t
-        x_ref[i, 5] = 1         # vx: constant 1 m/s
-
-    # Build the c_horizon vector for the current MPC horizon based on time progression.
-    dt = SRBD_mpc.dt
-    horizon = SRBD_mpc.HORIZON_LENGTH
-    current_time = 0.0  # This should be updated each MPC solve if needed.
-
-    c_horizon = []
-    contact_horizon = []
-    for i in range(horizon):
-        t_i = current_time + i * dt
-        # Find the gait phase corresponding to t_i.
-        phase = None
-        for ph in gait_phases:
-            if ph["start_time"] <= t_i < ph["end_time"]:
-                phase = ph
-                break
-        if phase is None:
-            phase = gait_phases[-1]
-
-        left = phase["left_foot"]
-        right = phase["right_foot"]
-        foot_vec = np.concatenate((left, right), axis=0)
-        c_horizon.append(foot_vec)
-
-        # Define contact: 1 if foot is in stance, 0 if in swing.
-        left_contact = 1 if phase["support_leg"] in ["both", "left"] else 0
-        right_contact = 1 if phase["support_leg"] in ["both", "right"] else 0
-        contact_horizon.append([left_contact, right_contact])
-        
-    c_horizon = np.array(c_horizon)
-    print("c_horizon:", c_horizon)
-    
-    contact_horizon = np.array(contact_horizon)
-    print("contact_horizon:", contact_horizon)
-
-    p_com_horizon = x_ref[:, 3:6]
-    # print("p_com_horizon:", p_com_horizon)
-    
     SRBD_mpc.init_matrices()
+   
+    # Initialize x_ref as zeros.
+    x_ref = np.zeros((SRBD_mpc.HORIZON_LENGTH, SRBD_mpc.NUM_STATES))
+    # print(SRBD_mpc.NUM_STATES)
+    # exit()
+    x_ref[:, -1] = SRBD_mpc.g
+    x_ref[:, 5] = 1     # z position: constant 1 m
+    x_ref[:, 6] = 1      # x velocity: constant 1 m/s
     
-    SRBD_mpc.x0 = x_ref[0]
+
     
-    SRBD_mpc.extract_psi(x_ref)
-    print("psi in degrees:", np.degrees(SRBD_mpc.psi))
-    SRBD_mpc.rotation_matrix_T()
-    print("Rotation Matrix: \n", SRBD_mpc.rotation_z)
-    SRBD_mpc.set_Q()
-    SRBD_mpc.set_R()
-    SRBD_mpc.calculate_A_continuous()
-    SRBD_mpc.calculate_A_discrete()
-    SRBD_mpc.calculate_B_continuous(c_horizon, p_com_horizon)
-    SRBD_mpc.calculate_B_discrete()
-    SRBD_mpc.calculate_Aqp()
-    SRBD_mpc.calculate_Bqp()
-    SRBD_mpc.calculate_Ac()
-    SRBD_mpc.calculate_bounds(contact_horizon)
-    SRBD_mpc.calculate_hessian()
-    SRBD_mpc.calculate_gradient()
-    SRBD_mpc.solve_qp()
+    current_time = 0.0
+    total_duration = 0.07
+    # total_duration = gait_phases[-1]["end_time"]
 
-    SRBD_mpc.compute_rollout()
+    # List to store center of mass (COM) rollout at each MPC iteration.
+    com_hist = []
+
+    while current_time < total_duration:
+        print("Index:", int(current_time / SRBD_mpc.dt))
+        dt = SRBD_mpc.dt  # MPC time step
+        
+
+        if current_time == 0.0:
+            SRBD_mpc.x0 = x_ref[0].copy()
+        else:
+            SRBD_mpc.x0 = SRBD_mpc.x_opt[0].copy()
+            print("x0:", SRBD_mpc.x0)
+
+        # Construct the trajectory relative to the current time:
+        # - x position increases linearly based on current_time
+        # - Orientation remains 0,0,0.
+        # - Set x velocity to 1 m/s.
+        for i in range(SRBD_mpc.HORIZON_LENGTH):
+            t_i = current_time + i * dt
+            x_ref[i, 3] = t_i    # x position: 1 m/s * (current time + t_offset)
+             
+        
+        # c_horizon = []
+        # contact_horizon = []
+        # for i in range(SRBD_mpc.HORIZON_LENGTH):
+        #     t_i = current_time + i * dt
+        #     # Find the gait phase corresponding to t_i.
+        #     phase = None
+        #     for ph in gait_phases:
+        #         if ph["start_time"] <= t_i < ph["end_time"]:
+        #             phase = ph
+        #             break
+        #     if phase is None:
+        #         phase = gait_phases[-1]
+
+        #     left = phase["left_foot"]
+        #     right = phase["right_foot"]
+        #     foot_vec = np.concatenate((left, right), axis=0)
+        #     c_horizon.append(foot_vec)
+
+        #     # Define contact: 1 if foot is in stance, 0 if in swing.
+        #     left_contact = 1 if phase["support_leg"] in ["both", "left"] else 0
+        #     right_contact = 1 if phase["support_leg"] in ["both", "right"] else 0
+        #     contact_horizon.append([left_contact, right_contact])
+            
+        # c_horizon = np.array(c_horizon)
+        # # print("c_horizon:", c_horizon)
+        
+        # contact_horizon = np.array(contact_horizon)
+        # # print("contact_horizon:", contact_horizon)
+
+        p_com_horizon = x_ref[:, 3:6].copy()
+
+        c_horizon, contact_horizon = dummy_standing_quad(SRBD_mpc)
+
+        SRBD_mpc.extract_psi(x_ref)
+        # print("psi in degrees:", np.degrees(SRBD_mpc.psi))
+        SRBD_mpc.rotation_matrix_T()
+        # print("Rotation Matrix: \n", SRBD_mpc.rotation_z)
+        SRBD_mpc.set_Q()
+        SRBD_mpc.set_R()
+        SRBD_mpc.calculate_A_continuous()
+        SRBD_mpc.calculate_A_discrete()
+        SRBD_mpc.calculate_B_continuous(c_horizon, p_com_horizon)
+        SRBD_mpc.calculate_B_discrete()
+        SRBD_mpc.calculate_Aqp()
+        SRBD_mpc.calculate_Bqp()
+        SRBD_mpc.calculate_Ac()
+        SRBD_mpc.calculate_bounds(contact_horizon)
+        SRBD_mpc.calculate_hessian()
+        SRBD_mpc.calculate_gradient()
+        SRBD_mpc.solve_qp()
+
+        if current_time == 0.0:
+            SRBD_mpc.x_opt[0, :] = np.squeeze(SRBD_mpc.x0.copy())
+        else:
+            SRBD_mpc.x_opt[0, :] = np.squeeze(SRBD_mpc.x_opt[-1, :].copy())
+        SRBD_mpc.compute_rollout()
+        
+        # Print current COM position and footstep locations
+        print("COM:", SRBD_mpc.x_opt[0, 3:6])
+        
+        # Print the current left and right footstep locations from c_horizon
+        # print("Left foot:", c_horizon[0, :2])
+        # print("Right foot:", c_horizon[0, 2:])
+
+        
+        # Store the first state of the rollout (i.e. the current COM)
+        com_hist.append(SRBD_mpc.x_opt[0, 3:6].copy())
+        # com_hist.append(x_ref[0, 3:6].copy())
+        
+        current_time += dt
+
+        # print("Current time:", current_time)
 
 
-
-
-
+    # After simulation finishes, plot the COM trajectory in 3D.
+    com_hist = np.array(com_hist)
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.plot(com_hist[:,0], com_hist[:,1], com_hist[:,2], marker='o')
+    ax.set_title("Center of Mass Trajectory")
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
+    plt.show()
 
 
 if __name__ == '__main__':
