@@ -84,8 +84,8 @@ class MPC:
   
   def rotation_matrix_T(self):
     # Rotation matrix
-    self.rotation_z_T = np.array([[np.cos(self.psi), -np.sin(self.psi), 0], 
-                                [np.sin(self.psi), np.cos(self.psi), 0], 
+    self.rotation_z_T = np.array([[np.cos(self.psi), np.sin(self.psi), 0], 
+                                [-np.sin(self.psi), np.cos(self.psi), 0], 
                                 [0, 0, 1]])
 
   def set_Q(self):
