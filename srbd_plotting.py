@@ -149,7 +149,7 @@ class SRBDVisualizer:
         """
         self.ax3d.quiver(pos[0], pos[1], pos[2],
                          force[0], force[1], force[2],
-                         color=color, length=0.05)
+                         color=color, length=0.01)
 
     def draw_left_grf(self, left_foot_center, left_grf):
         """

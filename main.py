@@ -198,7 +198,7 @@ def testing_double_support(SRBD_mpc, current_time, total_duration):
     return SRBD_mpc.x_ref_hor
 
 def main():
-    planner = GaitPlanner(0.5, 0.2, 0.2, 0.4, 1000)
+    planner = GaitPlanner(0.05, 0.2, 0.15, 0.2, 100)
     gait_phases = planner.plan_gait()
     SRBD_mpc = mpc.MPC()
     SRBD_mpc.init_matrices()
@@ -239,7 +239,7 @@ def main():
 
         c_horizon = []
         contact_horizon = []
-        foot_offset = 0.07  # offset for front toe and back heel positions
+        foot_offset = 0.08  # offset for front toe and back heel positions
         for i in range(SRBD_mpc.HORIZON_LENGTH):
             t_i = current_time + i * dt
             phase = None
