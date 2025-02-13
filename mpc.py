@@ -9,7 +9,7 @@ import time
 # MPC class
 class MPC:
   # Constructor
-  def __init__(self, mu=0.3, fz_min = 10., fz_max = 666., dt = 0.04, HORIZON_LENGTH = 20):
+  def __init__(self, mu=0.3, fz_min = 10., fz_max = 1000., dt = 0.04, HORIZON_LENGTH = 10):
     # Initialize the MPC class
     self.g = -9.81 # m/s^2 Gravity
     self.robot_mass = 35 # kg

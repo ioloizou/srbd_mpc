@@ -209,7 +209,7 @@ def main():
     SRBD_mpc.x_ref_hor[:, 5] = 1.     # constant 1 m z position
 
     current_time = 0.0
-    total_duration = 0.08
+    total_duration = 4.
     dt = SRBD_mpc.dt
 
     com_hist = []
