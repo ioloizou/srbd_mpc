@@ -200,16 +200,18 @@ class SRBDVisualizer:
 
     def update_and_plot_humanoid(self, pose):
         """
-        Updates the 3D figure with separate calls for torso, left/right feet,
-        ground reaction forces, and adapted footsteps.
-        
-        Pose keys:
+        Updates the 3D figure with torso, feet, ground reaction forces,
+        and adapted footsteps.
+
+        Expects pose keys:
           'torso_pos', 'torso_euler',
           'left_foot_center', 'left_foot_angle',
           'right_foot_center', 'right_foot_angle',
-          'left_grf', 'right_grf' (optional),
-          'adapted_left_footstep' (optional): List of adapted left footsteps.
-          'adapted_right_footstep' (optional): List of adapted right footsteps.
+          Optionally: 'left_grf' and 'right_grf'
+          'adapted_left_footstep', 'adapted_right_footstep'
+          
+        This version uses a constant fixed offset for toe/heel positions (ignoring any foot angle)
+        and splits the provided GRF equally between toe and heel if available.
         """
         self.ax3d.clear()
         # Set axis limits.
@@ -237,11 +239,29 @@ class SRBDVisualizer:
         if 'right_foot_center' in pose:
             self.draw_right_foot(pose['right_foot_center'], pose['right_foot_angle'])
     
-        # Draw ground reaction forces.
-        if 'left_grf' in pose and 'left_foot_center' in pose:
-            self.draw_left_grf(pose['left_foot_center'], pose['left_grf'])
-        if 'right_grf' in pose and 'right_foot_center' in pose:
-            self.draw_right_grf(pose['right_foot_center'], pose['right_grf'])
+        # Fixed offset for toe and heel positions.
+        foot_offset = self.foot_length/2  
+    
+        # Draw ground reaction forces for left foot.
+        if 'left_foot_center' in pose:
+            left_center = np.array([pose['left_foot_center'][0], pose['left_foot_center'][1], 0])
+            # Split the force equally between toe and heel (adjust as needed).
+            left_toe_pos = left_center + np.array([foot_offset, 0, 0])
+            left_toe_force = np.array(pose['left_grf_toe'])
+            left_heel_pos = left_center - np.array([foot_offset, 0, 0])
+            left_heel_force = np.array(pose['left_grf_heel'])
+            self.draw_ground_reaction_force(left_toe_pos, left_toe_force, color='red')
+            self.draw_ground_reaction_force(left_heel_pos, left_heel_force, color='red')
+          
+        # Draw ground reaction forces for right foot.
+        if 'right_foot_center' in pose:
+            right_center = np.array([pose['right_foot_center'][0], pose['right_foot_center'][1], 0])
+            right_toe_pos = right_center + np.array([foot_offset, 0, 0])
+            right_toe_force = np.array(pose['right_grf_toe'])
+            right_heel_pos = right_center - np.array([foot_offset, 0, 0])
+            right_heel_force = np.array(pose['right_grf_heel'])
+            self.draw_ground_reaction_force(right_toe_pos, right_toe_force, color='blue')
+            self.draw_ground_reaction_force(right_heel_pos, right_heel_force, color='blue')
     
         # Draw adapted footsteps if provided.
         if 'adapted_left_footstep' in pose:

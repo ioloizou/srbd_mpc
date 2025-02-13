@@ -9,15 +9,15 @@ import time
 # MPC class
 class MPC:
   # Constructor
-  def __init__(self, mu=0.3, fz_min = 10., fz_max = 666., dt = 0.03, HORIZON_LENGTH = 10):
+  def __init__(self, mu=0.3, fz_min = 10., fz_max = 666., dt = 0.03, HORIZON_LENGTH = 19):
     # Initialize the MPC class
     self.g = -9.81 # m/s^2 Gravity
     self.robot_mass = 35 # kg
     self.dt = dt # seconds 
-    self.LEGS = 4 # Number of legs
+    self.NUM_CONTACTS = 4 # Number of legs
     self.HORIZON_LENGTH = HORIZON_LENGTH # Number of nodes in the MPC horizon
     self.NUM_STATES = 13  
-    self.NUM_CONTROLS = 3*self.LEGS
+    self.NUM_CONTROLS = 3*self.NUM_CONTACTS
     self.NUM_BOUNDS = 5
     
     # Inertia matrix of the G1 through pinocchio in home configuration
@@ -35,7 +35,7 @@ class MPC:
     
     # The last weight is for the gravity term
     self.q_weights = np.diag([750, 75, 1250, 8e6, 2e6, 3e6, 8e2, 2e3, 3e4, 5e4, 5e4, 5e4, 0]) # Weights from MIT humanoid orientation aware
-    self.r_weights = np.diag([0.01, 0.01, 0.1, 0.01, 0.01, 0.1, 0.01, 0.01, 0.1, 0.01, 0.01, 0.1])
+    self.r_weights = np.diag(np.repeat([0.001, 0.001, 0.01], self.NUM_CONTACTS))
     self.mu = mu # Coefficient of friction
     self.fz_min = fz_min # Newton, Minimum normal force
     self.fz_max = fz_max # Newton, Maximum normal force
@@ -56,7 +56,7 @@ class MPC:
     self.Q = np.zeros((self.NUM_STATES*self.HORIZON_LENGTH, self.NUM_STATES*self.HORIZON_LENGTH))
     
     self.R = np.zeros((self.NUM_CONTROLS*self.HORIZON_LENGTH, self.NUM_CONTROLS*self.HORIZON_LENGTH))
-    self.Ac = np.zeros((5 * self.LEGS * self.HORIZON_LENGTH, self.NUM_CONTROLS * self.HORIZON_LENGTH))
+    self.Ac = np.zeros((5 * self.NUM_CONTACTS * self.HORIZON_LENGTH, self.NUM_CONTROLS * self.HORIZON_LENGTH))
     
     self.Hessian = self.Bqp.T @ self.Q @ self.Bqp + self.R
     self.rotation_z_T = np.zeros((3, 3))
@@ -122,17 +122,19 @@ class MPC:
     assert self.A_discrete.shape == (self.NUM_STATES, self.NUM_STATES)
     
   def calculate_B_continuous(self, c_horizon, p_com_horizon):
-
+    
+    c_horizon = np.array(c_horizon)
+    p_com_horizon = np.array(p_com_horizon)
     INERTIA_WORLD = self.rotation_z_T @ self.INERTIA_BODY @ self.rotation_z_T.T
 
     for i in range(self.HORIZON_LENGTH):
-      for j in range(self.LEGS):
-        # Vector from the center of mass to the contact point NEED TO CHECK THE FRAME
+      for j in range(self.NUM_CONTACTS):
+        # Vector from the center of mass to the contact point
 
         # print("c_horizon: \n", c_horizon[i, 3*j:3*j+3]) 
         # print("p_com_horizon: \n", p_com_horizon[i, :])
         r = c_horizon[i, 3*j:3*j+3] - p_com_horizon[i, :]
-        print("r: \n", r)
+        # print("r: \n", r)
         r_skew = self.vector_to_skew_symmetric_matrix(r)
         self.B_continuous[6:9, 3*j:(3*j+3)] = np.linalg.inv(INERTIA_WORLD) @ r_skew
         self.B_continuous[9:12, 3*j:(3*j+3)] = np.eye(3)/self.robot_mass
@@ -158,10 +160,6 @@ class MPC:
         self.Aqp[0:self.NUM_STATES, 0:self.NUM_STATES] = self.A_discrete.copy()
       else:
         self.Aqp[i*self.NUM_STATES:(i+1)*self.NUM_STATES, 0:self.NUM_STATES] = self.Aqp[(i-1)*self.NUM_STATES:i*self.NUM_STATES, 0:self.NUM_STATES] @ self.A_discrete
-
-    # np.set_printoptions(threshold=np.inf)
-    # np.set_printoptions(linewidth=np.inf)
-    # np.set_printoptions(precision=10)
 
     assert self.Aqp.shape == (self.NUM_STATES * self.HORIZON_LENGTH, self.NUM_STATES)
   
@@ -198,7 +196,7 @@ class MPC:
       ])
 
       # Determine the number of blocks over the horizon for all legs
-      num_blocks = self.LEGS * self.HORIZON_LENGTH
+      num_blocks = self.NUM_CONTACTS * self.HORIZON_LENGTH
 
       # Create a list of blocks to form a block-diagonal matrix
       blocks = [g_block for _ in range(num_blocks)]
@@ -208,11 +206,13 @@ class MPC:
 
       expected_rows = self.NUM_BOUNDS * num_blocks
       expected_cols = 3 * num_blocks
+      
       # np.set_printoptions(threshold=np.inf)
       # np.set_printoptions(linewidth=np.inf)
       # print(self.Ac.todense())
       # print("Ac shape: \n", self.Ac.shape)
       # exit()
+      
       assert self.Ac.shape == (expected_rows, expected_cols)
 
   def calculate_bounds(self, contact):
@@ -220,7 +220,7 @@ class MPC:
     upper_bounds_list = []
     
     for horizon_step in range(self.HORIZON_LENGTH):
-        for leg in range(self.LEGS):
+        for leg in range(self.NUM_CONTACTS):
             contact_active = int(contact[horizon_step][leg])
             # Lower bounds: [fx + mu*fz, fx - mu*fz, fy + mu*fz, fy - mu*fz, fz_min]
             lower_bounds_list.extend([
@@ -242,17 +242,17 @@ class MPC:
     self.lower_bounds_horizon = np.array(lower_bounds_list)
     self.upper_bounds_horizon = np.array(upper_bounds_list)
 
-    # Print shapes of the bounds
-    print("Lower bounds shape: \n", self.lower_bounds_horizon.shape)
-    print("Upper bounds shape: \n", self.upper_bounds_horizon.shape)
+    # # Print shapes of the bounds
+    # print("Lower bounds shape: \n", self.lower_bounds_horizon.shape)
+    # print("Upper bounds shape: \n", self.upper_bounds_horizon.shape)
 
-    print("Lower bounds: \n", self.lower_bounds_horizon)
-    print("Upper bounds: \n", self.upper_bounds_horizon)
-    # Show the whole matrix
-    np.set_printoptions(threshold=np.inf)
-    np.set_printoptions(linewidth=np.inf)
+    # print("Lower bounds: \n", self.lower_bounds_horizon)
+    # print("Upper bounds: \n", self.upper_bounds_horizon)
+    # # Show the whole matrix
+    # np.set_printoptions(threshold=np.inf)
+    # np.set_printoptions(linewidth=np.inf)
     
-    expected_length = self.HORIZON_LENGTH * self.LEGS * self.NUM_BOUNDS
+    expected_length = self.HORIZON_LENGTH * self.NUM_CONTACTS * self.NUM_BOUNDS
 
     assert self.lower_bounds_horizon.shape == (expected_length,)
     assert self.upper_bounds_horizon.shape == (expected_length,)
@@ -266,10 +266,11 @@ class MPC:
     # print("Bqp: \n", self.Bqp.shape)
     # print("Q: \n", self.Q.shape)
     # print("R: \n", self.R.shape)
+    
     # Create a flattened version for gradient computation while preserving x_ref_hor's original shape
     self.x_ref_hor_vec = self.x_ref_hor.reshape((self.NUM_STATES * self.HORIZON_LENGTH, 1))
     self.x0 = self.x0.reshape((self.NUM_STATES, 1)) # If i dont reshape i have math problem
-    print("Gradient x0: \n", self.x0)
+    # print("Gradient x0: \n", self.x0)
     # print("x_ref_hor: \n", self.x_ref_hor.shape)
     
 
@@ -295,23 +296,13 @@ class MPC:
 
     t0 = time.time()
 
-    # Initialize the OSQP solver if it hasn't been created yet
+    # # Initialize the OSQP solver if it hasn't been created yet
     # if not hasattr(self, "qp_solver"):
-
-    # Dummy matrices to check the solver with the same dimenstions as the original
-    # P = sparse.csc_matrix(np.eye(60))
-    # q = np.ones(60)
-    # A = sparse.csc_matrix(np.ones((100, 60)))
-    # l = np.zeros(30)
-    # u = np.ones(30)
-    
-
     self.qp_solver = osqp.OSQP()
-    self.qp_solver.setup(P=P, q=q, A=A, l=l, u=u, verbose=False, warm_start=True)
-
+    self.qp_solver.setup(P, q, A, l, u, verbose=False, warm_start=False)
     # else:
     #   # Update the OSQP problem data with new values
-    #   self.qp_solver.update(q=q, P=P, l=l, u=u)
+    #   self.qp_solver.update(q=q, l=l, u=u, Px=P.data, Ax=A.data)
 
     t1 = time.time()
     result = self.qp_solver.solve()
@@ -327,20 +318,7 @@ class MPC:
     return result
   
   def compute_rollout(self):
-    # # Compute the rollout
-    # self.x_opt[0, :] = self.x0.T.copy()
-    # # print("Rollout x0: \n", self.x0)
-    # # exit()
-    
-    # DUMMY VALUES
-    # Make the GRF on u_opt first row equal to the weight of the robot
-    # self.u_opt[0, 0] = 0
-    # self.u_opt[0, 1] = 0
-    # self.u_opt[0, 2] = 400
-    # self.u_opt[0, 3] = 0
-    # self.u_opt[0, 4] = 0
-    # self.u_opt[0, 5] = 400
-
+    # Compute the rollout becuase is signle shooting
     
     for i in range(1, self.HORIZON_LENGTH):
       self.x_opt[i, :] = self.A_discrete @ self.x_opt[i-1, :] + self.B_discrete_hor[(i-1)*self.NUM_STATES:i*self.NUM_STATES, 0:self.NUM_CONTROLS] @ self.u_opt[i-1, :].T
@@ -348,5 +326,4 @@ class MPC:
 
     print("x_opt: \n", self.x_opt)
     print("u_opt: \n", self.u_opt)
-    # I need a print to check the total force on the robot
     print("Total force on the robot: \n", np.sum(self.u_opt, axis=1))
