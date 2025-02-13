@@ -198,7 +198,7 @@ def testing_double_support(SRBD_mpc, current_time, total_duration):
     return SRBD_mpc.x_ref_hor
 
 def main():
-    planner = GaitPlanner(0.05, 0.2, 0.15, 0.2, 100)
+    planner = GaitPlanner(0.01, 0.25, 0.15, 0.2, 100)
     gait_phases = planner.plan_gait()
     SRBD_mpc = mpc.MPC()
     SRBD_mpc.init_matrices()
@@ -209,7 +209,7 @@ def main():
     SRBD_mpc.x_ref_hor[:, 5] = 1.     # constant 1 m z position
 
     current_time = 0.0
-    total_duration = 4.
+    total_duration = 0.08
     dt = SRBD_mpc.dt
 
     com_hist = []
