@@ -21,7 +21,7 @@ class SRBDVisualizer:
         # self.ax2d = self.fig2d.add_subplot(111)
         
         # Global visual parameters.
-        self.body_size = (0.3, 0.5, 1.0)  # width, depth, height
+        self.body_size = (0.2, 0.45, 1.0)  # width, depth, height
         # This are visual are not the real values, just for visualization
         self.foot_length = 0.4
         self.foot_width = 0.2
