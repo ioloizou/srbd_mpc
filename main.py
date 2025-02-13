@@ -176,8 +176,29 @@ def plot_ground_reaction_forces(grf_hist, dt):
     plt.tight_layout()
     plt.show()
 
+def testing_double_support(SRBD_mpc, current_time, total_duration):
+    for i in range(SRBD_mpc.HORIZON_LENGTH):
+              t_ref = current_time + i * SRBD_mpc.dt
+              # Use the simulation total_duration (2 seconds) to divide into four segments.
+              if t_ref < total_duration / 4:
+                # First quarter: shift COM to the right (positive Y offset)
+                ref_com = np.array([0.0, 0.1, 1.0])
+              elif t_ref < total_duration / 2:
+                # Second quarter: return COM to the center
+                ref_com = np.array([0.0, 0.0, 1.0])
+              elif t_ref < 3 * total_duration / 4:
+                # Third quarter: move COM a bit down (reduce Z)
+                ref_com = np.array([0.0, 0.0, 0.7])
+              else:
+                # Last quarter: move COM a bit forward (positive X offset)
+                ref_com = np.array([0.01, 0.0, 1.0])
+              
+              SRBD_mpc.x_ref_hor[i, 3:6] = ref_com
+    
+    return SRBD_mpc.x_ref_hor
+
 def main():
-    planner = GaitPlanner(10., 0.1, 0.2, 0.4, 10)
+    planner = GaitPlanner(0.5, 0.2, 0.2, 0.4, 1000)
     gait_phases = planner.plan_gait()
     SRBD_mpc = mpc.MPC()
     SRBD_mpc.init_matrices()
@@ -188,7 +209,7 @@ def main():
     SRBD_mpc.x_ref_hor[:, 5] = 1.     # constant 1 m z position
 
     current_time = 0.0
-    total_duration = 8.
+    total_duration = 4.
     dt = SRBD_mpc.dt
 
     com_hist = []
@@ -206,36 +227,19 @@ def main():
         else:
             SRBD_mpc.x0 = SRBD_mpc.x_opt[2].copy()
             
-            for i in range(SRBD_mpc.HORIZON_LENGTH):
-              t_ref = current_time + i * dt
-              # Use the simulation total_duration (2 seconds) to divide into four segments.
-              if t_ref < total_duration / 4:
-                # First quarter: shift COM to the right (positive Y offset)
-                ref_com = np.array([0.0, 0.1, 1.0])
-              elif t_ref < total_duration / 2:
-                # Second quarter: return COM to the center
-                ref_com = np.array([0.0, 0.0, 1.0])
-              elif t_ref < 3 * total_duration / 4:
-                # Third quarter: move COM a bit down (reduce Z)
-                ref_com = np.array([0.0, 0.0, 0.7])
-              else:
-                # Last quarter: move COM a bit forward (positive X offset)
-                ref_com = np.array([0.01, 0.0, 1.0])
-              
-              SRBD_mpc.x_ref_hor[i, 3:6] = ref_com
+            # testing_double_support(SRBD_mpc, current_time, total_duration)
 
-            # SRBD_mpc.x_ref_hor[:, 3:6] = [0., 0., 1.]
-            # SRBD_mpc.x_ref_hor[:, 0:3] = [0., 0., 1.]              
-            
-            # SRBD_mpc.x_ref_hor[:, 6] = 1.     # constant 0.3 m/s x velocity           
+            # #Simple moving forward reference
+            # constant_velocity = 0.5     # constant 0.3 m/s x velocity           
+            # SRBD_mpc.x_ref_hor[:, 6] = constant_velocity
             # for i in range(SRBD_mpc.HORIZON_LENGTH):
-            #     pos = i * SRBD_mpc.x0[6] * SRBD_mpc.dt
+            #     pos = SRBD_mpc.x0[5] + i * constant_velocity * SRBD_mpc.dt
             #     SRBD_mpc.x_ref_hor[i, 3] = pos
             #     print("X pos:", pos)
 
         c_horizon = []
         contact_horizon = []
-        foot_offset = 0.05  # offset for front toe and back heel positions
+        foot_offset = 0.07  # offset for front toe and back heel positions
         for i in range(SRBD_mpc.HORIZON_LENGTH):
             t_i = current_time + i * dt
             phase = None
@@ -260,6 +264,7 @@ def main():
             left_contact = 1 if phase["support_leg"] in ["both", "left"] else 0
             right_contact = 1 if phase["support_leg"] in ["both", "right"] else 0
             contact_horizon.append([left_contact, left_contact, right_contact, right_contact])
+        
 
         p_com_horizon = SRBD_mpc.x_ref_hor[:, 3:6].copy()
         # Perform MPC calculations.
@@ -330,7 +335,7 @@ def main():
         pose['right_grf_heel'] = (grf_hist[index][6], grf_hist[index][7], grf_hist[index][8])
         pose['right_grf_toe']  = (grf_hist[index][9], grf_hist[index][10], grf_hist[index][11])
 
-        # Use the gait phases for the feet positions.
+        # Use the gait phases for the feet positions. PROBLEM I SHOULD NOT USE IT LIKE THAT
         feet_pose = get_poses(t, gait_phases)
         if "left_foot_center" in feet_pose:
             pose["left_foot_center"] = feet_pose["left_foot_center"]

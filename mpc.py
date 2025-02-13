@@ -34,8 +34,12 @@ class MPC:
     self.u = np.zeros((self.NUM_CONTROLS, 1))
     
     # The last weight is for the gravity term
-    self.q_weights = np.diag([750, 75, 1250, 8e4, 2e5, 3e6, 8e2, 2e3, 3e4, 5e3, 5e4, 5e3, 0]) # Weights from MIT humanoid orientation aware
-    self.r_weights = np.diag(np.repeat([0.01, 0.01, 0.1], self.NUM_CONTACTS))
+    # [roll, pitch, yaw, x, y, z, wx, wy, wz, vx, vy, vz, g]
+    self.q_weights = np.diag([1e4, 2e4, 1e3, 
+                              1e4, 5e3, 3e5, 
+                              3e3, 3e3, 1e3, 
+                              5e4, 5e4, 1e4, 0]) # Weights from MIT humanoid orientation aware
+    self.r_weights = np.diag(np.repeat([0.001, 0.001, 0.01], self.NUM_CONTACTS))
     self.mu = mu # Coefficient of friction
     self.fz_min = fz_min # Newton, Minimum normal force
     self.fz_max = fz_max # Newton, Maximum normal force
@@ -132,9 +136,9 @@ class MPC:
         # Vector from the center of mass to the contact point
 
         # print("c_horizon: \n", c_horizon[i, 3*j:3*j+3]) 
-        # print("p_com_horizon: \n", p_com_horizon[i, :])
+        print("p_com_horizon: \n", p_com_horizon[i, :])
         r = c_horizon[i, 3*j:3*j+3] - p_com_horizon[i, :]
-        # print("r: \n", r)
+        print("r: \n", r)
         r_skew = self.vector_to_skew_symmetric_matrix(r)
         self.B_continuous[6:9, 3*j:(3*j+3)] = np.linalg.inv(INERTIA_WORLD) @ r_skew
         self.B_continuous[9:12, 3*j:(3*j+3)] = np.eye(3)/self.robot_mass

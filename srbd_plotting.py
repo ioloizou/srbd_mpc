@@ -22,6 +22,7 @@ class SRBDVisualizer:
         
         # Global visual parameters.
         self.body_size = (0.3, 0.5, 1.0)  # width, depth, height
+        # This are visual are not the real values, just for visualization
         self.foot_length = 0.4
         self.foot_width = 0.2
         self.com_history = []
