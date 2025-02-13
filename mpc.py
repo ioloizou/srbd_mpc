@@ -34,8 +34,8 @@ class MPC:
     self.u = np.zeros((self.NUM_CONTROLS, 1))
     
     # The last weight is for the gravity term
-    self.q_weights = np.diag([750, 75, 1250, 8e6, 2e6, 3e6, 8e2, 2e3, 3e4, 5e4, 5e4, 5e4, 0]) # Weights from MIT humanoid orientation aware
-    self.r_weights = np.diag(np.repeat([0.001, 0.001, 0.01], self.NUM_CONTACTS))
+    self.q_weights = np.diag([750, 75, 1250, 8e4, 2e5, 3e6, 8e2, 2e3, 3e4, 5e3, 5e4, 5e3, 0]) # Weights from MIT humanoid orientation aware
+    self.r_weights = np.diag(np.repeat([0.01, 0.01, 0.1], self.NUM_CONTACTS))
     self.mu = mu # Coefficient of friction
     self.fz_min = fz_min # Newton, Minimum normal force
     self.fz_max = fz_max # Newton, Maximum normal force

@@ -39,15 +39,15 @@ def get_poses(t, gait_phases):
             phase["adapted_right_footstep"] = [{"foot_center": adapted_right.tolist(), "foot_angle": 0}]
         pose["adapted_right_footstep"] = phase["adapted_right_footstep"]
 
-    print("Time: ", t)
-    if "left_foot_center" in pose:
-        print("Left foot (stance): ", pose["left_foot_center"])
-    else:
-        print("Left foot: Swing")
-    if "right_foot_center" in pose:
-        print("Right foot (stance): ", pose["right_foot_center"])
-    else:
-        print("Right foot: Swing")
+    # print("Time: ", t)
+    # if "left_foot_center" in pose:
+    #     print("Left foot (stance): ", pose["left_foot_center"])
+    # else:
+    #     print("Left foot: Swing")
+    # if "right_foot_center" in pose:
+    #     print("Right foot (stance): ", pose["right_foot_center"])
+    # else:
+    #     print("Right foot: Swing")
     return pose
 
 def plot():
@@ -84,9 +84,9 @@ def plot_all_trajectories(com_hist, orient_hist, vel_hist, orient_deriv_hist, dt
 
     # Center of Mass Trajectory
     ax = axs[0, 0]
-    ax.plot(time_array, com_hist[:, 0], marker='o', label="X")
-    ax.plot(time_array, com_hist[:, 1], marker='o', label="Y")
-    ax.plot(time_array, com_hist[:, 2], marker='o', label="Z")
+    ax.plot(time_array, com_hist[:, 0], label="X")
+    ax.plot(time_array, com_hist[:, 1], label="Y")
+    ax.plot(time_array, com_hist[:, 2], label="Z")
     ax.set_title("Center of Mass Trajectory")
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Position (m)")
@@ -95,10 +95,10 @@ def plot_all_trajectories(com_hist, orient_hist, vel_hist, orient_deriv_hist, dt
 
     # Orientation Trajectory
     ax = axs[0, 1]
-    ax.plot(time_array, orient_hist[:, 0], marker='o', label="Roll")
-    ax.plot(time_array, orient_hist[:, 1], marker='o', label="Pitch")
-    ax.plot(time_array, orient_hist[:, 2], marker='o', label="Yaw")
-    ax.set_title("COM Orientation")
+    ax.plot(time_array, orient_hist[:, 0], label="Roll")
+    ax.plot(time_array, orient_hist[:, 1], label="Pitch")
+    ax.plot(time_array, orient_hist[:, 2], label="Yaw")
+    ax.set_title("SRBD Orientation")
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Angle (rad)")
     ax.grid(True)
@@ -106,9 +106,9 @@ def plot_all_trajectories(com_hist, orient_hist, vel_hist, orient_deriv_hist, dt
 
     # COM Velocity Trajectory
     ax = axs[1, 0]
-    ax.plot(time_array, vel_hist[:, 0], marker='o', label="Vx")
-    ax.plot(time_array, vel_hist[:, 1], marker='o', label="Vy")
-    ax.plot(time_array, vel_hist[:, 2], marker='o', label="Vz")
+    ax.plot(time_array, vel_hist[:, 0], label="Vx")
+    ax.plot(time_array, vel_hist[:, 1], label="Vy")
+    ax.plot(time_array, vel_hist[:, 2], label="Vz")
     ax.set_title("COM Velocity Trajectory")
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Velocity (m/s)")
@@ -117,9 +117,9 @@ def plot_all_trajectories(com_hist, orient_hist, vel_hist, orient_deriv_hist, dt
 
     # Orientation Derivative Trajectory
     ax = axs[1, 1]
-    ax.plot(time_array, orient_deriv_hist[:, 0], marker='o', label="Roll Rate")
-    ax.plot(time_array, orient_deriv_hist[:, 1], marker='o', label="Pitch Rate")
-    ax.plot(time_array, orient_deriv_hist[:, 2], marker='o', label="Yaw Rate")
+    ax.plot(time_array, orient_deriv_hist[:, 0], label="Roll Rate")
+    ax.plot(time_array, orient_deriv_hist[:, 1], label="Pitch Rate")
+    ax.plot(time_array, orient_deriv_hist[:, 2], label="Yaw Rate")
     ax.set_title("Orientation Derivative Trajectory")
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Rate (rad/s)")
@@ -177,7 +177,7 @@ def plot_ground_reaction_forces(grf_hist, dt):
     plt.show()
 
 def main():
-    planner = GaitPlanner(5., 0.2, 0.1, 0.4, 10)
+    planner = GaitPlanner(10., 0.1, 0.2, 0.4, 10)
     gait_phases = planner.plan_gait()
     SRBD_mpc = mpc.MPC()
     SRBD_mpc.init_matrices()
@@ -188,7 +188,7 @@ def main():
     SRBD_mpc.x_ref_hor[:, 5] = 1.     # constant 1 m z position
 
     current_time = 0.0
-    total_duration = 2.
+    total_duration = 8.
     dt = SRBD_mpc.dt
 
     com_hist = []
@@ -206,10 +206,32 @@ def main():
         else:
             SRBD_mpc.x0 = SRBD_mpc.x_opt[2].copy()
             
-            # SRBD_mpc.x_ref_hor[:, 6] = 0.3     # constant 0.3 m/s x velocity           
             for i in range(SRBD_mpc.HORIZON_LENGTH):
-                pos = i * SRBD_mpc.x_ref_hor[i, 6] * SRBD_mpc.dt
-                SRBD_mpc.x_ref_hor[i, 3] = pos
+              t_ref = current_time + i * dt
+              # Use the simulation total_duration (2 seconds) to divide into four segments.
+              if t_ref < total_duration / 4:
+                # First quarter: shift COM to the right (positive Y offset)
+                ref_com = np.array([0.0, 0.1, 1.0])
+              elif t_ref < total_duration / 2:
+                # Second quarter: return COM to the center
+                ref_com = np.array([0.0, 0.0, 1.0])
+              elif t_ref < 3 * total_duration / 4:
+                # Third quarter: move COM a bit down (reduce Z)
+                ref_com = np.array([0.0, 0.0, 0.7])
+              else:
+                # Last quarter: move COM a bit forward (positive X offset)
+                ref_com = np.array([0.01, 0.0, 1.0])
+              
+              SRBD_mpc.x_ref_hor[i, 3:6] = ref_com
+
+            # SRBD_mpc.x_ref_hor[:, 3:6] = [0., 0., 1.]
+            # SRBD_mpc.x_ref_hor[:, 0:3] = [0., 0., 1.]              
+            
+            # SRBD_mpc.x_ref_hor[:, 6] = 1.     # constant 0.3 m/s x velocity           
+            # for i in range(SRBD_mpc.HORIZON_LENGTH):
+            #     pos = i * SRBD_mpc.x0[6] * SRBD_mpc.dt
+            #     SRBD_mpc.x_ref_hor[i, 3] = pos
+            #     print("X pos:", pos)
 
         c_horizon = []
         contact_horizon = []
@@ -286,10 +308,10 @@ def main():
     grf_hist = np.array(grf_hist)
 
     # Now animate the MPC solution.
-    visualizer = SRBDVisualizer(is_static=False)
+    visualizer = SRBDVisualizer(is_static=True)
     # Create a time array matching the MPC simulation duration.
     t_frames = np.linspace(0, total_duration, len(com_hist))
-    SLOWDOWN_FACTOR = 4.0
+    SLOWDOWN_FACTOR = 1.0
 
     def animate(t):
         # Determine the closest index for the simulation history.
