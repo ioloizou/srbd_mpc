@@ -9,7 +9,7 @@ import time
 # MPC class
 class MPC:
   # Constructor
-  def __init__(self, mu=0.3, fz_min = 10., fz_max = 666., dt = 0.04, HORIZON_LENGTH = 10):
+  def __init__(self, mu=0.3, fz_min = 10., fz_max = 333., dt = 0.04, HORIZON_LENGTH = 10):
     # Initialize the MPC class
     self.g = -9.81 # m/s^2 Gravity
     self.robot_mass = 35 # kg
@@ -35,11 +35,21 @@ class MPC:
     
     # The last weight is for the gravity term
     # [roll, pitch, yaw, x, y, z, wx, wy, wz, vx, vy, vz, g]
-    self.q_weights = np.diag([7e5, 7e4, 1e4, 
-                              5e5, 5e5, 3e6, 
-                              3e3, 3e3, 3e3, 
-                              5e3, 1e3, 1e4, 0]) # Weights from MIT humanoid orientation aware
+    
+    # # Standing and walking in place weights
+    self.q_weights = np.diag([2e3, 9e3, 5e2, 
+                              3e3, 2e4, 2e4, 
+                              5e2, 5e2, 1e1, 
+                              1e1, 9e2, 1e1, 0])
     self.r_weights = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
+
+    
+    # # Standing and walking in place weights
+    # self.q_weights = np.diag([7e5, 7e4, 1e4, 
+    #                           5e5, 5e5, 3e6, 
+    #                           3e3, 3e3, 3e3, 
+    #                           5e3, 1e3, 1e4, 0])
+    # self.r_weights = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
     self.mu = mu # Coefficient of friction
     self.fz_min = fz_min # Newton, Minimum normal force
     self.fz_max = fz_max # Newton, Maximum normal force
@@ -303,7 +313,7 @@ class MPC:
     # # Initialize the OSQP solver if it hasn't been created yet
     # if not hasattr(self, "qp_solver"):
     self.qp_solver = osqp.OSQP()
-    self.qp_solver.setup(P, q, A, l, u, verbose=False, warm_start=False)
+    self.qp_solver.setup(P, q, A, l, u, verbose=False, warm_start=True)
     # else:
     #   # Update the OSQP problem data with new values
     #   self.qp_solver.update(q=q, l=l, u=u, Px=P.data, Ax=A.data)

@@ -52,13 +52,13 @@ class GaitPlanner:
             # After the first step the step increment is doubled.
             step_increment = self.step_length if i == 0 else 2 * self.step_length
 
-            # # Update the swing foot position based on the step_increment.
-            # if support_leg == "left":
-            #     # Left is support; update right foot.
-            #     self.right_foot_pos += np.array([step_increment, 0.0])
-            # elif support_leg == "right":
-            #     # Right is support; update left foot.
-            #     self.left_foot_pos += np.array([step_increment, 0.0])
+            # Update the swing foot position based on the step_increment.
+            if support_leg == "left":
+                # Left is support; update right foot.
+                self.right_foot_pos += np.array([step_increment, 0.0])
+            elif support_leg == "right":
+                # Right is support; update left foot.
+                self.left_foot_pos += np.array([step_increment, 0.0])
         return self.phases
 
     def plot_gait(self):
