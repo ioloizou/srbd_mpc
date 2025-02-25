@@ -198,7 +198,7 @@ def testing_double_support(SRBD_mpc, current_time, total_duration):
     return SRBD_mpc.x_ref_hor
 
 def main():
-    planner = GaitPlanner(0.01, 0.25, 0.1, 0.2, 100)
+    planner = GaitPlanner(1000., 0.25, 0.1, 0.2, 100)
     gait_phases = planner.plan_gait()
     SRBD_mpc = mpc.MPC()
     SRBD_mpc.init_matrices()
@@ -227,32 +227,32 @@ def main():
         else:
             SRBD_mpc.x0 = SRBD_mpc.x_opt[2].copy()
             
-            # testing_double_support(SRBD_mpc, current_time, total_duration)
+            testing_double_support(SRBD_mpc, current_time, total_duration)
 
-            #Simple moving forward reference
-            for i in range(SRBD_mpc.HORIZON_LENGTH):
-                t_ref = current_time + i * dt
-                phase = None
-                for ph in gait_phases:
-                    if ph["start_time"] <= t_ref < ph["end_time"]:
-                        phase = ph
-                        break
-                if phase is None:
-                    phase = gait_phases[-1]
+            # #Simple moving forward reference
+            # for i in range(SRBD_mpc.HORIZON_LENGTH):
+            #     t_ref = current_time + i * dt
+            #     phase = None
+            #     for ph in gait_phases:
+            #         if ph["start_time"] <= t_ref < ph["end_time"]:
+            #             phase = ph
+            #             break
+            #     if phase is None:
+            #         phase = gait_phases[-1]
 
-                # Choose the reference foot position based on the support leg.
-                if phase["support_leg"] == "left":
-                    foot = np.array(phase["left_foot"])
-                elif phase["support_leg"] == "right":
-                    foot = np.array(phase["right_foot"])
-                else:  # "both": average the positions
-                    foot = (np.array(phase["left_foot"]) + np.array(phase["right_foot"])) / 2
+            #     # Choose the reference foot position based on the support leg.
+            #     if phase["support_leg"] == "left":
+            #         foot = np.array(phase["left_foot"])
+            #     elif phase["support_leg"] == "right":
+            #         foot = np.array(phase["right_foot"])
+            #     else:  # "both": average the positions
+            #         foot = (np.array(phase["left_foot"]) + np.array(phase["right_foot"])) / 2
 
-                # Set the COM reference near the selected foot.
-                SRBD_mpc.x_ref_hor[i, 3] = foot[0] - 0.01
-                SRBD_mpc.x_ref_hor[i, 5] = 1.0  # Maintain constant z position
+                # # Set the COM reference near the selected foot.
+                # SRBD_mpc.x_ref_hor[i, 3] = foot[0] - 0.01
+                # SRBD_mpc.x_ref_hor[i, 5] = 1.0  # Maintain constant z position
 
-                print("COM ref for horizon {}: {}".format(i, SRBD_mpc.x_ref_hor[i, 3:6]))
+                # print("COM ref for horizon {}: {}".format(i, SRBD_mpc.x_ref_hor[i, 3:6]))
             
             
 
@@ -306,7 +306,7 @@ def main():
         if current_time == 0.0:
             SRBD_mpc.x_opt[0, :] = np.squeeze(SRBD_mpc.x0.copy())
         else:
-            SRBD_mpc.x_opt[0, :] = np.squeeze(SRBD_mpc.x_opt[2, :].copy())
+            SRBD_mpc.x_opt[0, :] = np.squeeze(SRBD_mpc.x_opt[1, :].copy())
         SRBD_mpc.compute_rollout()
 
         # Record MPC states.

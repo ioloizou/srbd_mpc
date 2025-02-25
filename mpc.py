@@ -11,10 +11,10 @@ class MPC:
   # Constructor
   def __init__(self, mu=0.3, fz_min = 10., fz_max = 333., dt = 0.04, HORIZON_LENGTH = 10):
     # Initialize the MPC class
-    self.g = -9.81 # m/s^2 Gravity
+    self.g = -9.80665 # m/s^2 Gravity
     self.robot_mass = 35 # kg
     self.dt = dt # seconds 
-    self.NUM_CONTACTS = 4 # Number of legs
+    self.NUM_CONTACTS = 4 # Number of contacts
     self.HORIZON_LENGTH = HORIZON_LENGTH # Number of nodes in the MPC horizon
     self.NUM_STATES = 13  
     self.NUM_CONTROLS = 3*self.NUM_CONTACTS
@@ -27,7 +27,7 @@ class MPC:
       [0.425526,   -0.00065082,  0.552353]
     ]) # kg*m^2
     
-    # x = [roll, pitch, yaw, x, y, z, wx, wy, wz, vx, vy, vz]
+    # x = [roll, pitch, yaw, x, y, z, wx, wy, wz, vx, vy, vz, g]
     self.x = np.zeros((self.NUM_STATES, 1))
     
     # u = [f_left_x, f_left_y, f_left_z, f_right_x, f_right_y, f_right_z]
@@ -37,19 +37,19 @@ class MPC:
     # [roll, pitch, yaw, x, y, z, wx, wy, wz, vx, vy, vz, g]
     
     # # Standing and walking in place weights
-    self.q_weights = np.diag([2e3, 9e3, 5e2, 
-                              3e3, 2e4, 2e4, 
-                              5e2, 5e2, 1e1, 
-                              1e1, 9e2, 1e1, 0])
-    self.r_weights = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
+    # self.q_weights = np.diag([2e3, 9e3, 5e2, 
+    #                           3e3, 2e4, 2e4, 
+    #                           5e2, 5e2, 1e1, 
+    #                           1e1, 9e2, 1e1, 0])
+    # self.r_weights = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
 
     
-    # # Standing and walking in place weights
-    # self.q_weights = np.diag([7e5, 7e4, 1e4, 
-    #                           5e5, 5e5, 3e6, 
-    #                           3e3, 3e3, 3e3, 
-    #                           5e3, 1e3, 1e4, 0])
-    # self.r_weights = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
+    # Standing double support weights
+    self.q_weights = np.diag([7e5, 7e4, 1e4, 
+                              5e5, 5e5, 3e6, 
+                              3e3, 3e3, 3e3, 
+                              5e3, 1e3, 1e4, 0])
+    self.r_weights = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
     self.mu = mu # Coefficient of friction
     self.fz_min = fz_min # Newton, Minimum normal force
     self.fz_max = fz_max # Newton, Maximum normal force
@@ -235,7 +235,7 @@ class MPC:
     
     for horizon_step in range(self.HORIZON_LENGTH):
         for leg in range(self.NUM_CONTACTS):
-            contact_active = int(contact[horizon_step][leg])
+            contact_active = contact[horizon_step][leg]
             # Lower bounds: [fx + mu*fz, fx - mu*fz, fy + mu*fz, fy - mu*fz, fz_min]
             lower_bounds_list.extend([
                 0,                      # fx + mu*fz lower bound
@@ -330,10 +330,11 @@ class MPC:
     # print("Solve time: {:.2f}ms".format((t2-t1)*1000))
 
     return result
-  
-  def compute_rollout(self):
-    # Compute the rollout becuase is signle shooting
-    
+
+  def compute_rollout(self, x_current=None):
+    # This overeload is to use with the whole body
+    if x_current is not None:      
+      self.x_opt[0, :] = x_current.reshape((self.NUM_STATES,))
     for i in range(1, self.HORIZON_LENGTH):
       self.x_opt[i, :] = self.A_discrete @ self.x_opt[i-1, :] + self.B_discrete_hor[(i-1)*self.NUM_STATES:i*self.NUM_STATES, 0:self.NUM_CONTROLS] @ self.u_opt[i-1, :].T
 
