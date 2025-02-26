@@ -36,20 +36,34 @@ class MPC:
     # The last weight is for the gravity term
     # [roll, pitch, yaw, x, y, z, wx, wy, wz, vx, vy, vz, g]
     
-    # # Standing and walking in place weights
+    # Walking in place weights
     # self.q_weights = np.diag([2e3, 9e3, 5e2, 
     #                           3e3, 2e4, 2e4, 
     #                           5e2, 5e2, 1e1, 
     #                           1e1, 9e2, 1e1, 0])
     # self.r_weights = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
-
     
-    # Standing double support weights
-    self.q_weights = np.diag([7e5, 7e4, 1e4, 
-                              5e5, 5e5, 3e6, 
-                              3e3, 3e3, 3e3, 
-                              5e3, 1e3, 1e4, 0])
-    self.r_weights = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
+    # # Standing double support weights
+    # self.q_weights = np.diag([7e5, 7e4, 1e4, 
+    #                           5e5, 5e5, 3e6, 
+    #                           3e3, 3e3, 3e3, 
+    #                           5e3, 1e3, 1e4, 0])
+    # self.r_weights = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
+    
+    # Whole body weights
+    self.q_weights = np.diag([5e2, 5e2, 5e1, 
+                              5e2, 5e3, 5e4, 
+                              5e2, 9e1, 1e2, 
+                              4e3, 9e3, 2e4, 0])
+    self.r_weights = np.diag(np.repeat([0.001, 0.001, 0.01], self.NUM_CONTACTS))    
+
+    # # MIT humanoid Weights
+    # self.q_weights = np.diag([75e1, 75e0, 125e1, 
+    #                           8e2, 2e3, 3e4, 
+    #                           8e2, 2e3, 3e4, 
+    #                           5e2, 5e3, 5e2, 0])
+    # self.r_weights = np.diag(np.repeat([0.01, 0.01, 0.1], self.NUM_CONTACTS))
+    
     self.mu = mu # Coefficient of friction
     self.fz_min = fz_min # Newton, Minimum normal force
     self.fz_max = fz_max # Newton, Maximum normal force
