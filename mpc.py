@@ -44,18 +44,18 @@ class MPC:
     # self.r_weights = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
     
     # Standing double support weights
-    # self.q_weights = np.diag([7e5, 7e4, 1e4, 
-    #                           5e5, 5e5, 3e6, 
-    #                           3e3, 3e3, 3e3, 
-    #                           5e3, 1e3, 1e4, 0])
-    # self.r_weights = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
-    
-    # # Whole body weights
-    self.q_weights = np.diag([4e4, 5e4, 1e4, 
-                              1e6, 5e5, 3e6, 
-                              3e1, 3e2, 3e1, 
+    self.q_weights = np.diag([7e5, 7e4, 1e4, 
+                              5e5, 5e5, 3e6, 
+                              3e3, 3e3, 3e3, 
                               5e3, 1e3, 1e4, 0])
-    self.r_weights = np.diag(np.repeat([0.1, 0.1, 0.1], self.NUM_CONTACTS))  
+    self.r_weights = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
+    
+    # # # Whole body weights
+    # self.q_weights = np.diag([4e4, 5e4, 1e4, 
+    #                           1e6, 5e5, 3e6, 
+    #                           3e1, 3e2, 3e1, 
+    #                           5e3, 1e3, 1e4, 0])
+    # self.r_weights = np.diag(np.repeat([0.1, 0.1, 0.1], self.NUM_CONTACTS))  
 
     # # MIT humanoid Weights
     # self.q_weights = np.diag([75e1, 75e0, 125e1, 
@@ -345,13 +345,34 @@ class MPC:
 
     return result
 
-  def compute_rollout(self, x_current=None):
+  def update(self, contact, c_horizon, p_com_horizon, x_current=None, one_rollout=False):
+    self.extract_psi()
+    self.rotation_matrix_T()
+    self.set_Q()
+    self.set_R()
+    self.calculate_A_continuous()
+    self.calculate_A_discrete()
+    self.calculate_B_continuous(c_horizon, p_com_horizon)
+    self.calculate_B_discrete()
+    self.calculate_Aqp()
+    self.calculate_Bqp()
+    self.calculate_Ac()
+    self.calculate_bounds(contact)
+    self.calculate_hessian()
+    self.calculate_gradient()
+    self.solve_qp()
+    self.compute_rollout(x_current, one_rollout)
+    return self.u_opt, self.x_opt
+
+  def compute_rollout(self, x_current=None, only_first_step=False):
     # This overeload is to use with the whole body
     if x_current is not None:      
       self.x_opt[0, :] = x_current.reshape((self.NUM_STATES,))
-    for i in range(1, self.HORIZON_LENGTH):
+    
+    for i in range(1, self.HORIZON_LENGTH):    
       self.x_opt[i, :] = self.A_discrete @ self.x_opt[i-1, :] + self.B_discrete_hor[(i-1)*self.NUM_STATES:i*self.NUM_STATES, 0:self.NUM_CONTROLS] @ self.u_opt[i-1, :].T
-
+      if only_first_step:
+        return
 
     print("x_opt: \n", self.x_opt)
     print("u_opt: \n", self.u_opt)
