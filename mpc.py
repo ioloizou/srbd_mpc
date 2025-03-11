@@ -9,10 +9,10 @@ import time
 # MPC class
 class MPC:
   # Constructor
-  def __init__(self, mu=0.3, fz_min = 10., fz_max = 333., dt = 0.04, HORIZON_LENGTH = 20):
+  def __init__(self, mu=0.3, fz_min = 10., fz_max = 666., dt = 0.04, HORIZON_LENGTH = 10):
     # Initialize the MPC class
     self.g = -9.80665 # m/s^2 Gravity
-    self.robot_mass = 35 # kg
+    self.ROBOT_MASS = 35 # kg
     self.dt = dt # seconds 
     self.NUM_CONTACTS = 4 # Number of contacts
     self.HORIZON_LENGTH = HORIZON_LENGTH # Number of nodes in the MPC horizon
@@ -37,32 +37,32 @@ class MPC:
     # [roll, pitch, yaw, x, y, z, wx, wy, wz, vx, vy, vz, g]
     
     # Walking in place weights
-    # self.q_weights = np.diag([2e3, 9e3, 5e2, 
+    # self.Q_WEIGHTS = np.diag([2e3, 9e3, 5e2, 
     #                           3e3, 2e4, 2e4, 
     #                           5e2, 5e2, 1e1, 
     #                           1e1, 9e2, 1e1, 0])
-    # self.r_weights = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
+    # self.R_WEIGHTS = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
     
     # Standing double support weights
-    self.q_weights = np.diag([7e5, 7e4, 1e4, 
+    self.Q_WEIGHTS = np.diag([7e5, 7e4, 1e4, 
                               5e5, 5e5, 3e6, 
                               3e3, 3e3, 3e3, 
                               5e3, 1e3, 1e4, 0])
-    self.r_weights = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
+    self.R_WEIGHTS = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
     
     # # # Whole body weights
-    # self.q_weights = np.diag([4e4, 5e4, 1e4, 
+    # self.Q_WEIGHTS = np.diag([4e4, 5e4, 1e4, 
     #                           1e6, 5e5, 3e6, 
     #                           3e1, 3e2, 3e1, 
     #                           5e3, 1e3, 1e4, 0])
-    # self.r_weights = np.diag(np.repeat([0.1, 0.1, 0.1], self.NUM_CONTACTS))  
+    # self.R_WEIGHTS = np.diag(np.repeat([0.1, 0.1, 0.1], self.NUM_CONTACTS))  
 
     # # MIT humanoid Weights
-    # self.q_weights = np.diag([75e1, 75e0, 125e1, 
+    # self.Q_WEIGHTS = np.diag([75e1, 75e0, 125e1, 
     #                           8e2, 2e3, 3e4, 
     #                           8e2, 2e3, 3e4, 
     #                           5e2, 5e3, 5e2, 0])
-    # self.r_weights = np.diag(np.repeat([0.01, 0.01, 0.1], self.NUM_CONTACTS))
+    # self.R_WEIGHTS = np.diag(np.repeat([0.01, 0.01, 0.1], self.NUM_CONTACTS))
     
     self.mu = mu # Coefficient of friction
     self.fz_min = fz_min # Newton, Minimum normal force
@@ -82,6 +82,9 @@ class MPC:
     self.Bqp = np.zeros((self.NUM_STATES * self.HORIZON_LENGTH, self.NUM_CONTROLS * self.HORIZON_LENGTH))
     
     self.Q = np.zeros((self.NUM_STATES*self.HORIZON_LENGTH, self.NUM_STATES*self.HORIZON_LENGTH))
+
+    self.c_horizon = np.zeros((self.HORIZON_LENGTH, self.NUM_CONTACTS*3))
+    self.p_com_horizon = np.zeros((self.HORIZON_LENGTH, self.NUM_STATES))
     
     self.R = np.zeros((self.NUM_CONTROLS*self.HORIZON_LENGTH, self.NUM_CONTROLS*self.HORIZON_LENGTH))
     self.Ac = np.zeros((5 * self.NUM_CONTACTS * self.HORIZON_LENGTH, self.NUM_CONTROLS * self.HORIZON_LENGTH))
@@ -118,12 +121,12 @@ class MPC:
 
   def set_Q(self):
     for i in range(self.HORIZON_LENGTH):
-      self.Q[i*self.NUM_STATES:(i+1)*self.NUM_STATES, i*self.NUM_STATES:(i+1)*self.NUM_STATES] = self.q_weights.copy()
+      self.Q[i*self.NUM_STATES:(i+1)*self.NUM_STATES, i*self.NUM_STATES:(i+1)*self.NUM_STATES] = self. Q_WEIGHTS.copy()
     # print("Q: \n", self.Q)
 
   def set_R(self):
     for i in range(self.HORIZON_LENGTH):
-      self.R[i*self.NUM_CONTROLS:(i+1)*self.NUM_CONTROLS, i*self.NUM_CONTROLS:(i+1)*self.NUM_CONTROLS] = self.r_weights.copy()
+      self.R[i*self.NUM_CONTROLS:(i+1)*self.NUM_CONTROLS, i*self.NUM_CONTROLS:(i+1)*self.NUM_CONTROLS] = self.R_WEIGHTS.copy()
     # print("R: \n", self.R)
   def calculate_A_continuous(self):
     # Calculate the continuous A matrix
@@ -150,9 +153,10 @@ class MPC:
     assert self.A_discrete.shape == (self.NUM_STATES, self.NUM_STATES)
     
   def calculate_B_continuous(self, c_horizon, p_com_horizon):
-    
-    c_horizon = np.array(c_horizon)
-    p_com_horizon = np.array(p_com_horizon)
+
+    self.c_horizon = np.array(c_horizon)
+    self.p_com_horizon = np.array(p_com_horizon)
+   
     INERTIA_WORLD = self.rotation_z_T @ self.INERTIA_BODY @ self.rotation_z_T.T
 
     for i in range(self.HORIZON_LENGTH):
@@ -161,11 +165,11 @@ class MPC:
 
         # print("c_horizon: \n", c_horizon[i, 3*j:3*j+3]) 
         # print("p_com_horizon: \n", p_com_horizon[i, :])
-        r = c_horizon[i, 3*j:3*j+3] - p_com_horizon[i, :]
+        self.r = self.c_horizon[i, 3*j:3*j+3] - self.p_com_horizon[i, :]
         # print("r: \n", r)
-        r_skew = self.vector_to_skew_symmetric_matrix(r)
+        r_skew = self.vector_to_skew_symmetric_matrix(self.r)
         self.B_continuous[6:9, 3*j:(3*j+3)] = np.linalg.inv(INERTIA_WORLD) @ r_skew
-        self.B_continuous[9:12, 3*j:(3*j+3)] = np.eye(3)/self.robot_mass
+        self.B_continuous[9:12, 3*j:(3*j+3)] = np.eye(3)/self.ROBOT_MASS
         assert self.B_continuous.shape == (self.NUM_STATES, self.NUM_CONTROLS)
 
       self.B_continuous_hor[i*self.NUM_STATES:(i+1)*self.NUM_STATES, 0:self.NUM_CONTROLS] = self.B_continuous
