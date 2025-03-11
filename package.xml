@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>g1_mujoco_sim</name>
+  <name>g1_mpc</name>
   <version>0.0.1</version>
   <description>Single Rigid Body Controller Package for G1 humanoid robot</description>
 

@@ -15,10 +15,11 @@ include_directories(
 
 catkin_install_python(PROGRAMS
   src/mpc_to_wbid.py
+  src/mpc.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 install(DIRECTORY
-  src
+  src/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )

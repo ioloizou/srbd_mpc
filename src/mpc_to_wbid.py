@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from mpc import MPC
 import numpy as np
 
@@ -65,7 +66,7 @@ if __name__ == '__main__':
 	rospy.init_node('mpc', anonymous=True)
 		
 	MPC = MPC()
-	MPC.init()
+	MPC.init_matrices()
 	
 	sub_current_state = rospy.Subscriber('/srbd_current', SRBD_state, callback_srbd_current)
 	pub_mpc_solution = rospy.Publisher('/mpc_solution', SRBD_state, queue_size=10)
