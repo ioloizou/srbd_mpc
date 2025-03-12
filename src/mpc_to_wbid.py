@@ -57,9 +57,9 @@ def publish_mpc_solution():
 	for i, contact_name in enumerate(["left_foot_line_contact_lower", "left_foot_line_contact_upper", "right_foot_line_contact_lower", "right_foot_line_contact_upper"]):
 		contact_point_msg = ContactPoint()
 		contact_point_msg.name = contact_name
-		contact_point_msg.force.x = MPC.u_opt0[i * 3]
-		contact_point_msg.force.y = MPC.u_opt0[i * 3 + 1]
-		contact_point_msg.force.z = MPC.u_opt0[i * 3 + 2]
+		contact_point_msg.force.x = MPC.u_opt[0, i * 3]
+		contact_point_msg.force.y = MPC.u_opt[0, i * 3 + 1]
+		contact_point_msg.force.z = MPC.u_opt[0, i * 3 + 2]
 		
 		# Contact State
 		contact_point_msg.active = True
@@ -87,7 +87,9 @@ if __name__ == '__main__':
 
 		p_com_horizon = np.tile([5.26790425e-02, 7.44339342e-05, 5.97983255e-01] , (MPC.HORIZON_LENGTH, 1))
 
+		print("x0\n", MPC.x0)
 		# Update the MPC solution		
-		MPC.update(contact_horizon, c_horizon, p_com_horizon, x_current = MPC.x0 , one_rollout = True)
+		MPC.update(contact_horizon, c_horizon, p_com_horizon, x_current = MPC.x0.copy() , one_rollout = True)
+		
 		# Publish the MPC solution
 		publish_mpc_solution()
