@@ -9,10 +9,10 @@ import time
 # MPC class
 class MPC:
   # Constructor
-  def __init__(self, mu=0.3, fz_min = 10., fz_max = 666., dt = 0.04, HORIZON_LENGTH = 10):
+  def __init__(self, mu=0.3, fz_min = 10., fz_max = 666., dt = 0.04, HORIZON_LENGTH = 15):
     # Initialize the MPC class
     self.g = -9.80665 # m/s^2 Gravity
-    self.ROBOT_MASS = 35 # kg
+    self.ROBOT_MASS = 34.13385728 # kg
     self.dt = dt # seconds 
     self.NUM_CONTACTS = 4 # Number of contacts
     self.HORIZON_LENGTH = HORIZON_LENGTH # Number of nodes in the MPC horizon
@@ -44,11 +44,11 @@ class MPC:
     # self.R_WEIGHTS = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
     
     # Standing double support weights
-    self.Q_WEIGHTS = np.diag([7e5, 7e4, 1e4, 
-                              5e5, 5e5, 3e6, 
-                              3e3, 3e3, 3e3, 
-                              5e3, 1e3, 1e4, 0])
-    self.R_WEIGHTS = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
+    # self.Q_WEIGHTS = np.diag([7e5, 7e4, 1e4, 
+    #                           5e5, 5e5, 3e6, 
+    #                           3e3, 3e3, 3e3, 
+    #                           5e3, 1e3, 1e4, 0])
+    # self.R_WEIGHTS = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
     
     # # # Whole body weights
     # self.Q_WEIGHTS = np.diag([4e4, 5e4, 1e4, 
@@ -64,6 +64,14 @@ class MPC:
     #                           5e2, 5e3, 5e2, 0])
     # self.R_WEIGHTS = np.diag(np.repeat([0.01, 0.01, 0.1], self.NUM_CONTACTS))
     
+    # # Testing weights
+    self.Q_WEIGHTS = np.diag([75e1, 75e1, 125e1, 
+                              2e4, 2e4, 2e4, 
+                              3e2, 3e3, 3e4, 
+                              5e2, 5e3, 5e2, 0])
+    self.R_WEIGHTS = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
+    
+
     self.mu = mu # Coefficient of friction
     self.fz_min = fz_min # Newton, Minimum normal force
     self.fz_max = fz_max # Newton, Maximum normal force

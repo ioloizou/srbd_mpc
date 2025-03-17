@@ -88,9 +88,9 @@ if __name__ == '__main__':
 		p_com_horizon = np.tile([5.26790425e-02, 7.44339342e-05, 5.97983255e-01] , (MPC.HORIZON_LENGTH, 1))
 
 		MPC.x_ref_hor[:, 3:6] = np.tile([5.26790425e-02, 7.44339342e-05, 5.97983255e-01], (MPC.HORIZON_LENGTH, 1))
-		
+		MPC.x_ref_hor[:, 12]= MPC.g
+		# exit()
 		# Update the MPC solution		
 		MPC.update(contact_horizon, c_horizon, p_com_horizon, x_current = MPC.x0.copy() , one_rollout = True)
-		
 		# Publish the MPC solution
 		publish_mpc_solution()
