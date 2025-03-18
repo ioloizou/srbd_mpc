@@ -6,6 +6,36 @@ import rospy
 from g1_msgs.msg import SRBD_state, ContactPoint
 from std_msgs.msg import Header
 
+
+def gait_planner(stance_duration=0.4):
+	"""
+	Very simple gait planner that alternates between two contact points every 0.04 seconds
+	based on elapsed time.
+	"""
+	# Initialize static variables on first call
+	if not hasattr(gait_planner, "last_switch_time"):
+		gait_planner.last_switch_time = rospy.Time.now()
+		gait_planner.current_phase = 0
+	
+	# Calculate elapsed time since last switch
+	current_time = rospy.Time.now()
+	elapsed = (current_time - gait_planner.last_switch_time).to_sec()
+	
+	# Check if it's time to switch gait pattern
+	if elapsed >= stance_duration:
+		gait_planner.current_phase = (gait_planner.current_phase + 1) % 2
+		gait_planner.last_switch_time = current_time
+	
+	# Create contact horizon based on current phase
+	contact_horizon = []
+	for _ in range(MPC.HORIZON_LENGTH):
+		if gait_planner.current_phase == 0:
+			contact_horizon.append(np.array([1, 1, 0, 0])) 
+		else:
+			contact_horizon.append(np.array([0, 0, 1, 1]))
+	
+	return contact_horizon
+
 def callback_srbd_current(msg):
 	"""
 	Callback function to update the current state of the robot.
@@ -62,8 +92,9 @@ def publish_mpc_solution():
 		contact_point_msg.force.z = MPC.u_opt[0, i * 3 + 2]
 		
 		# Contact State
-		contact_point_msg.active = True
+		contact_point_msg.active = gait_planner()[0][i]
 		srbd_state_msg.contacts.append(contact_point_msg)
+
 	pub_mpc_solution.publish(srbd_state_msg)		
 
 if __name__ == '__main__':
@@ -85,11 +116,33 @@ if __name__ == '__main__':
 		for i in range(MPC.HORIZON_LENGTH):
 			contact_horizon.append(np.array([1, 1, 1, 1]))
 
-		p_com_horizon = np.tile([5.26790425e-02, 7.44339342e-05, 5.97983255e-01] , (MPC.HORIZON_LENGTH, 1))
+		# MPC.x_ref_hor[:, 3:6] = np.tile([5.26790425e-02, 7.44339342e-05, 5.97983255e-01], (MPC.HORIZON_LENGTH, 1))
+		
+		# Get current time in seconds
+		time = rospy.Time.now().to_sec()
+	
+		# Update the reference trajectory:
+		# Keep x constant, and update y and z to follow a time-varying circle
 
-		MPC.x_ref_hor[:, 3:6] = np.tile([5.26790425e-02, 7.44339342e-05, 5.97983255e-01], (MPC.HORIZON_LENGTH, 1))
+		# Define circle parameters that change by time
+
+		MPC.x_ref_hor[0, 3:6] = [5.26790425e-02, 7.44339342e-05, 5.97983255e-01]
+
+		radius = 0.05
+		x_const = MPC.x_ref_hor[0, 3]
+		y_center = MPC.x_ref_hor[0, 4]
+		z_center = MPC.x_ref_hor[0, 5]
+
+		speed = 0.5
+		MPC.x_ref_hor[:, 3] = x_const 
+		MPC.x_ref_hor[:, 4] = y_center 
+		MPC.x_ref_hor[:, 5] = z_center 
+		# - radius * np.cos(speed*np.pi*time)
 		MPC.x_ref_hor[:, 12]= MPC.g
-		# exit()
+
+		p_com_horizon = MPC.x_ref_hor[:, 3:6].copy()
+		
+
 		# Update the MPC solution		
 		MPC.update(contact_horizon, c_horizon, p_com_horizon, x_current = MPC.x0.copy() , one_rollout = True)
 		# Publish the MPC solution
