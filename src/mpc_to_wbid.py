@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 from mpc import MPC
 import numpy as np
+from ttictoc import tic, toc
 
 import rospy
+from pal_statistics import StatisticsRegistry
+
+
 from g1_msgs.msg import SRBD_state, ContactPoint
 from std_msgs.msg import Header
 
-
-def gait_planner(stance_duration=0.4):
+def gait_planner(stance_duration=3.2):
 	"""
-	Very simple gait planner that alternates between two contact points every 0.04 seconds
+	Very simple gait planner that alternates between two contact points every 0.4 seconds
 	based on elapsed time.
 	"""
 	# Initialize static variables on first call
@@ -99,7 +102,13 @@ def publish_mpc_solution():
 
 if __name__ == '__main__':
 	rospy.init_node('mpc', anonymous=True)
-		
+
+
+	# Create Registry for a topic
+	registry = StatisticsRegistry("/mpc_statistics")
+	mpc_solve_time = 0.0
+	registry.registerFunction("mpc_solve_time", (lambda: mpc_solve_time))
+
 	MPC = MPC()
 	MPC.init_matrices()
 	
@@ -142,8 +151,14 @@ if __name__ == '__main__':
 
 		p_com_horizon = MPC.x_ref_hor[:, 3:6].copy()
 		
+		# contact_horizon = gait_planner()
 
-		# Update the MPC solution		
-		MPC.update(contact_horizon, c_horizon, p_com_horizon, x_current = MPC.x0.copy() , one_rollout = True)
+		# Update the MPC solution
+		tic()
+		MPC.update(contact_horizon, c_horizon, p_com_horizon, x_current=MPC.x0.copy(), one_rollout=True)
+		mpc_solve_time = toc()
+		
+		registry.publish()
+
 		# Publish the MPC solution
 		publish_mpc_solution()

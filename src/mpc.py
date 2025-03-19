@@ -43,12 +43,12 @@ class MPC:
     #                           1e1, 9e2, 1e1, 0])
     # self.R_WEIGHTS = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
     
-    # Standing double support weights
-    # self.Q_WEIGHTS = np.diag([7e5, 7e4, 1e4, 
-    #                           5e5, 5e5, 3e6, 
-    #                           3e3, 3e3, 3e3, 
-    #                           5e3, 1e3, 1e4, 0])
-    # self.R_WEIGHTS = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
+    # # Standing double support weights
+    self.Q_WEIGHTS = np.diag([7e5, 7e4, 1e4, 
+                              5e5, 5e5, 3e6, 
+                              3e3, 3e3, 3e3, 
+                              5e3, 1e3, 1e4, 0])
+    self.R_WEIGHTS = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
     
     # # # Whole body weights
     # self.Q_WEIGHTS = np.diag([4e4, 5e4, 1e4, 
@@ -64,12 +64,12 @@ class MPC:
     #                           5e2, 5e3, 5e2, 0])
     # self.R_WEIGHTS = np.diag(np.repeat([0.01, 0.01, 0.1], self.NUM_CONTACTS))
     
-    # # Testing weights
-    self.Q_WEIGHTS = np.diag([75e1, 75e1, 125e1, 
-                              2e4, 2e4, 2e4, 
-                              3e2, 3e3, 3e4, 
-                              5e2, 5e3, 5e2, 0])
-    self.R_WEIGHTS = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
+    # Testing weights
+    # self.Q_WEIGHTS = np.diag([75e1, 75e1, 125e1, 
+    #                           2e2, 2e3, 2e4, 
+    #                           3e2, 3e3, 3e4, 
+    #                           5e2, 5e3, 5e2, 0])
+    # self.R_WEIGHTS = np.diag(np.repeat([0.001, 0.001, 0.001], self.NUM_CONTACTS))
     
 
     self.mu = mu # Coefficient of friction
