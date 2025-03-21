@@ -13,8 +13,17 @@ find_package(catkin REQUIRED COMPONENTS
     g1_msgs
 )
 
+# To not raise errors when using Eigen's stack allocation
+add_definitions(-DEIGEN_STACK_ALLOCATION_LIMIT=0) 
+
 find_package(Eigen3 REQUIRED)
 find_package(osqp REQUIRED)
+
+
+# Set the location of OsqpEigen
+set(OsqpEigen_DIR /home/forest_ws/install/lib/cmake/OsqpEigen)
+# OSQP Eigen wrapper
+find_package(OsqpEigen REQUIRED)
 find_package(pybind11 REQUIRED)
 
 catkin_package(
@@ -26,6 +35,7 @@ catkin_package(
 # Include directories
 include_directories(
     include
+    /home/forest_ws/install/include/osqp
     ${catkin_INCLUDE_DIRS}
     ${EIGEN3_INCLUDE_DIRS}
 )
@@ -39,6 +49,7 @@ add_library(g1_mpc
 target_link_libraries(g1_mpc
     ${catkin_LIBRARIES}
     osqp::osqp
+    OsqpEigen::OsqpEigen
 )
 
 # Python bindings with pybind11
@@ -47,6 +58,7 @@ target_link_libraries(g1_mpc_py PRIVATE g1_mpc osqp::osqp)
 
 # C++ node for mpc_to_wbid
 add_executable(mpc_to_wbid_node src/mpc_to_wbid_node.cpp)
+
 target_link_libraries(mpc_to_wbid_node
     g1_mpc
     ${catkin_LIBRARIES}
@@ -64,8 +76,10 @@ install(TARGETS g1_mpc_py
     DESTINATION ${CATKIN_GLOBAL_PYTHON_DESTINATION}
 )
 
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/g1_mpc/__init__.py "# Auto-generated __init__.py for g1_mpc package")
+
 install(FILES
-    ${CATKIN_DEVEL_PREFIX}/${CATKIN_PACKAGE_PYTHON_DESTINATION}/__init__.py
+    ${CMAKE_CURRENT_BINARY_DIR}/g1_mpc/__init__.py
     DESTINATION ${CATKIN_GLOBAL_PYTHON_DESTINATION}
 )
 

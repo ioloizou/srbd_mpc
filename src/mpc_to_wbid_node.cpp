@@ -1,15 +1,17 @@
 #include <ros/ros.h>
 #include <memory>
-#include "mpc.hpp"
+#include "mpc_osqp_eigen.hpp"
 #include "g1_msgs/SRBD_state.h"
 #include "g1_msgs/ContactPoint.h"
 #include "std_msgs/Header.h"
 #include <pal_statistics/pal_statistics.h>
 
+// static int hi_counter = 0;
+
 class MPCNode
 {
 public:
-  MPCNode() : nh_(""), pnh_("~")
+  MPCNode() : nh_("")
   {
     // Initialize MPC
     mpc_ = std::make_shared<g1_mpc::MPC>();
@@ -27,7 +29,6 @@ public:
 
   void callbackSrbdCurrent(const g1_msgs::SRBD_state::ConstPtr& msg)
   {
-    // Update MPC initial state from message
     Eigen::VectorXd x0 = mpc_->getX0();
     x0[0] = msg->orientation.x;
     x0[1] = msg->orientation.y;
@@ -62,7 +63,11 @@ public:
         c_horizon(i, j) = contact_positions[i][j];
       }
     }
+
+    // Print c_horizon
+    std::cout << "c_horizon: \n" << c_horizon << std::endl;
     mpc_->setCHorizon(c_horizon);
+
   }
 
   std::vector<std::vector<int>> gaitPlanner()
@@ -145,8 +150,9 @@ public:
   }
 
   void update()
-  {
+  {    
     // Get contact horizon (which feet are in contact)
+    
     std::vector<std::vector<int>> contact_horizon;
     for (int i = 0; i < mpc_->horizon_length_; i++) {
       contact_horizon.push_back({1, 1, 1, 1}); // All feet in contact
@@ -180,7 +186,7 @@ public:
       p_com_horizon[i].resize(mpc_->getX0().size());
       for (int j = 0; j < 3; j++) {
         p_com_horizon[i][j+3] = x_ref_hor(i, j+3);
-      }
+    }
     }
     
     // Convert c_horizon to vector format
@@ -201,13 +207,14 @@ public:
     // Update MPC solution
     auto start_time = ros::WallTime::now();
     
+    
     Eigen::VectorXd x_current = mpc_->getX0();
     mpc_->update(contact_horizon, c_horizon, p_com_horizon, &x_current, true);
     
     mpc_solve_time_ = (ros::WallTime::now() - start_time).toSec() * 1000.0; // ms
     
     // Publish statistics
-
+    
     // PUBLISH_STATISTICS();
     
     // Publish solution
@@ -216,7 +223,6 @@ public:
 
 private:
   ros::NodeHandle nh_;
-  ros::NodeHandle pnh_;
   ros::Subscriber sub_current_state_;
   ros::Publisher pub_mpc_solution_;
   
@@ -231,13 +237,11 @@ int main(int argc, char **argv)
   
   MPCNode node;
   
-  ros::Rate rate(200);
   
   while (ros::ok()) {
-    ros::spinOnce();
+    ros::spin();
     node.update();
-    rate.sleep();
-  }
+    }
   
   return 0;
 }

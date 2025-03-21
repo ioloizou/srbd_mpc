@@ -101,7 +101,7 @@ namespace g1_mpc
 
     // Preallocate contact and p_com horizon matrices
     c_horizon_ = Eigen::MatrixXd::Zero(horizon_length_, num_contacts_ * 3);
-    p_com_horizon_ = Eigen::MatrixXd::Zero(horizon_length_, num_states_);
+    p_com_horizon_ = Eigen::MatrixXd::Zero(horizon_length_, 3);
   }
 
   double MPC::extractPsi()
@@ -262,7 +262,7 @@ namespace g1_mpc
   void MPC::calculateAc()
   {
     // Create the constraint matrix for friction cone
-    Eigen::MatrixXd g_block(num_bounds_, 3);
+    Eigen::MatrixXd g_block(num_bounds_, num_controls_/num_contacts_);
     g_block << 1, 0, mu_,
         1, 0, -mu_,
         0, 1, mu_,
@@ -349,8 +349,10 @@ namespace g1_mpc
   OSQPWorkspace *MPC::solveQP()
   {
     // Convert Eigen matrices to OSQP sparse matrices
-    // P matrix (Hessian)
-    Eigen::SparseMatrix<double> P_sparse = Hessian_.sparseView();
+    // P matrix (Hessian) should be upper triangular for OSQP
+    Eigen::MatrixXd H_upper = Hessian_.triangularView<Eigen::Upper>();
+    Eigen::SparseMatrix<double> P_sparse = H_upper.sparseView();
+    
     csc *P_csc = csc_matrix(P_sparse.rows(), P_sparse.cols(),
                             P_sparse.nonZeros(), P_sparse.valuePtr(),
                             P_sparse.innerIndexPtr(), P_sparse.outerIndexPtr());
@@ -370,6 +372,7 @@ namespace g1_mpc
       c_free(data_);
     }
 
+    
     // Set up data
     data_ = (OSQPData *)c_malloc(sizeof(OSQPData));
     data_->n = num_controls_ * horizon_length_;
@@ -379,33 +382,33 @@ namespace g1_mpc
     data_->q = gradient_.data();
     data_->l = lower_bounds_horizon_.data();
     data_->u = upper_bounds_horizon_.data();
-
+    
     // Set up settings if not already set
     if (!settings_)
     {
-      settings_ = (OSQPSettings *)c_malloc(sizeof(OSQPSettings));
+      settings_ = new OSQPSettings();
       osqp_set_default_settings(settings_);
-      settings_->verbose = false;
+      settings_->verbose = true;
       settings_->warm_start = true;
     }
-
+    
     // Setup solver
     auto t_start = std::chrono::high_resolution_clock::now();
-
+    
     if (qp_solver_)
     {
       osqp_cleanup(qp_solver_);
     }
-
+    
     osqp_setup(&qp_solver_, data_, settings_);
-
+    
     auto t_setup = std::chrono::high_resolution_clock::now();
-
+    
     // Solve problem
     osqp_solve(qp_solver_);
-
+    
     auto t_solve = std::chrono::high_resolution_clock::now();
-
+    
     // Extract solution
     for (int i = 0; i < horizon_length_; i++)
     {
@@ -414,7 +417,7 @@ namespace g1_mpc
         u_opt_(i, j) = qp_solver_->solution->x[i * num_controls_ + j];
       }
     }
-
+    
     // Debug timing info
     auto setup_time = std::chrono::duration_cast<std::chrono::microseconds>(t_setup - t_start).count() / 1000.0;
     auto solve_time = std::chrono::duration_cast<std::chrono::microseconds>(t_solve - t_setup).count() / 1000.0;
@@ -432,7 +435,6 @@ namespace g1_mpc
       const Eigen::VectorXd *x_current,
       bool one_rollout)
   {
-
     extractPsi();
     calculateRotationMatrixT();
     setQ();
