@@ -43,6 +43,7 @@ include_directories(
 # Build the MPC library
 add_library(g1_mpc
     src/mpc.cpp
+    src/
 )
 
 # Link against OSQP
@@ -53,8 +54,8 @@ target_link_libraries(g1_mpc
 )
 
 # Python bindings with pybind11
-pybind11_add_module(g1_mpc_py src/mpc_python.cpp)
-target_link_libraries(g1_mpc_py PRIVATE g1_mpc osqp::osqp)
+# pybind11_add_module(g1_mpc_py src/mpc_python.cpp)
+# target_link_libraries(g1_mpc_py PRIVATE g1_mpc osqp::osqp)
 
 # C++ node for mpc_to_wbid
 add_executable(mpc_to_wbid_node src/mpc_to_wbid_node.cpp)
@@ -72,9 +73,9 @@ install(TARGETS g1_mpc mpc_to_wbid_node
 )
 
 # Install Python module
-install(TARGETS g1_mpc_py
-    DESTINATION ${CATKIN_GLOBAL_PYTHON_DESTINATION}
-)
+# install(TARGETS g1_mpc_py
+#     DESTINATION ${CATKIN_GLOBAL_PYTHON_DESTINATION}
+# )
 
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/g1_mpc/__init__.py "# Auto-generated __init__.py for g1_mpc package")
 

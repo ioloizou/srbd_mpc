@@ -48,25 +48,9 @@ namespace g1_mpc
 
   MPC::~MPC()
   {
-    // Clean up OSQP solver resources
-    if (qp_solver_)
-    {
-      osqp_cleanup(qp_solver_);
-    }
-    if (data_)
-    {
-      if (data_->A)
-        c_free(data_->A);
-      if (data_->P)
-        c_free(data_->P);
-      c_free(data_);
-    }
-    if (settings_)
-    {
-      c_free(settings_);
-    }
+    
   }
-
+  
   void MPC::initMatrices()
   {
     // Initialize all matrices with correct sizes to avoid reallocations
@@ -79,6 +63,9 @@ namespace g1_mpc
     B_discrete_ = Eigen::MatrixXd::Zero(num_states_, num_controls_);
     B_discrete_hor_ = Eigen::MatrixXd::Zero(num_states_ * horizon_length_, num_controls_);
     Bqp_ = Eigen::MatrixXd::Zero(num_states_ * horizon_length_, num_controls_ * horizon_length_);
+
+    lower_bounds_horizon_ = Eigen::VectorXd::Zero(num_bounds_ * num_contacts_ * horizon_length_);
+    upper_bounds_horizon_ = Eigen::VectorXd::Zero(num_bounds_ * num_contacts_ * horizon_length_);
 
     Q_ = Eigen::MatrixXd::Zero(num_states_ * horizon_length_, num_states_ * horizon_length_);
     R_ = Eigen::MatrixXd::Zero(num_controls_ * horizon_length_, num_controls_ * horizon_length_);
@@ -167,21 +154,9 @@ namespace g1_mpc
     A_discrete_ = Eigen::MatrixXd::Identity(num_states_, num_states_) + A_continuous_ * dt_;
   }
 
-  void MPC::calculateBContinuous(const std::vector<std::vector<double>> &c_horizon,
-                                 const std::vector<std::vector<double>> &p_com_horizon)
+  void MPC::calculateBContinuous(const Eigen::MatrixXd &c_horizon,
+                                 const Eigen::MatrixXd &p_com_horizon)
   {
-    // Convert input vectors to Eigen matrices for efficient processing
-    for (int i = 0; i < horizon_length_; i++)
-    {
-      for (int j = 0; j < num_contacts_ * 3; j++)
-      {
-        c_horizon_(i, j) = c_horizon[i][j];
-      }
-      for (int j = 0; j < num_states_; j++)
-      {
-        p_com_horizon_(i, j) = p_com_horizon[i][j];
-      }
-    }
 
     // Calculate world inertia
     Eigen::Matrix3d inertia_world = rotation_z_T_ * inertia_body_ * rotation_z_T_.transpose();
@@ -263,78 +238,73 @@ namespace g1_mpc
   {
     // Create the constraint matrix for friction cone
     Eigen::MatrixXd g_block(num_bounds_, num_controls_/num_contacts_);
-    g_block << 1, 0, mu_,
-        1, 0, -mu_,
-        0, 1, mu_,
-        0, 1, -mu_,
-        0, 0, 1;
+    g_block.resize(num_bounds_ , num_controls_/num_contacts_);
+    g_block << 1,0,mu_,  
+               1,0,-mu_, 
+               0,1,mu_,  
+               0,1,-mu_, 
+               0,0,1;   
 
-    // Build the full constraint matrix using sparse blocks
-    typedef Eigen::Triplet<double> T;
-    std::vector<T> tripletList;
-    tripletList.reserve(num_bounds_ * num_controls_ * horizon_length_);
+    Ac_ = Eigen::SparseMatrix<double>(num_bounds_ * num_contacts_ * horizon_length_, num_controls_ * horizon_length_);
+    std::vector<Eigen::Triplet<double>> tripletList;
+    
+    tripletList.reserve(9 * 40);  
 
-    for (int h = 0; h < horizon_length_; h++)
+    int row_offset = 0;
+    int col_offset = 0;
+
+    while (row_offset + g_block.rows() <= Ac_.rows() && col_offset + g_block.cols() <= Ac_.cols())
     {
-      for (int c = 0; c < num_contacts_; c++)
-      {
-        for (int i = 0; i < num_bounds_; i++)
+        for (int i = 0; i < g_block.rows(); ++i)
         {
-          for (int j = 0; j < 3; j++)
-          {
-            if (g_block(i, j) != 0)
+            for (int j = 0; j < g_block.cols(); ++j)
             {
-              int row = h * num_contacts_ * num_bounds_ + c * num_bounds_ + i;
-              int col = h * num_controls_ + c * 3 + j;
-              tripletList.push_back(T(row, col, g_block(i, j)));
+                tripletList.push_back(Eigen::Triplet<double>(row_offset + i, col_offset + j, g_block(i, j)));
             }
-          }
-        }
-      }
+        }            
+        row_offset += 5; 
+        col_offset += 3; 
     }
 
-    Ac_.resize(num_bounds_ * num_contacts_ * horizon_length_, num_controls_ * horizon_length_);
     Ac_.setFromTriplets(tripletList.begin(), tripletList.end());
+    Ac_.makeCompressed();
   }
 
-  void MPC::calculateBounds(const std::vector<std::vector<int>> &contact)
+  void MPC::calculateBounds(const Eigen::MatrixXd &contact)
   {
-    std::vector<double> lower_bounds_list;
-    std::vector<double> upper_bounds_list;
-
-    lower_bounds_list.reserve(horizon_length_ * num_contacts_ * num_bounds_);
-    upper_bounds_list.reserve(horizon_length_ * num_contacts_ * num_bounds_);
-
-    for (int horizon_step = 0; horizon_step < horizon_length_; horizon_step++)
+    Eigen::VectorXd lower_bounds(num_bounds_ * num_contacts_);
+    Eigen::VectorXd upper_bounds(num_bounds_ * num_contacts_);
+    
+    int horizon_step = 0;
+    
+    while (horizon_step < horizon_length_)
     {
-      for (int leg = 0; leg < num_contacts_; leg++)
-      {
-        int contact_active = contact[horizon_step][leg];
+        for (int i=0; i<num_contacts_; i++)
+        {
+        lower_bounds.segment(i*num_bounds_, 5) << 0,                                        
+                                                -std::numeric_limits<double>::infinity(),  
+                                                 0,                                        
+                                                -std::numeric_limits<double>::infinity(),  
+                                                fz_min_*contact(horizon_step, i);                   
+                                                 
+        upper_bounds.segment(i*num_bounds_, 5) << std::numeric_limits<double>::infinity(),  
+                                                 0,                                        
+                                                 std::numeric_limits<double>::infinity(),  
+                                                 0,                                        
+                                                 fz_max_*contact(horizon_step, i);                   
+        }
 
-        // Lower bounds
-        lower_bounds_list.push_back(0);                        // fx + mu*fz
-        lower_bounds_list.push_back(-INFINITY);                // fx - mu*fz
-        lower_bounds_list.push_back(0);                        // fy + mu*fz
-        lower_bounds_list.push_back(-INFINITY);                // fy - mu*fz
-        lower_bounds_list.push_back(fz_min_ * contact_active); // fz_min
-
-        // Upper bounds
-        upper_bounds_list.push_back(INFINITY);                 // fx + mu*fz
-        upper_bounds_list.push_back(0);                        // fx - mu*fz
-        upper_bounds_list.push_back(INFINITY);                 // fy + mu*fz
-        upper_bounds_list.push_back(0);                        // fy - mu*fz
-        upper_bounds_list.push_back(fz_max_ * contact_active); // fz_max
-      }
+        lower_bounds_horizon_.segment(horizon_step*num_bounds_*num_contacts_, num_bounds_ * num_contacts_) = lower_bounds;
+        upper_bounds_horizon_.segment(horizon_step*num_bounds_*num_contacts_, num_bounds_ * num_contacts_) = upper_bounds;
+        horizon_step += 1;
     }
-
-    // Convert to Eigen vectors
-    lower_bounds_horizon_ = Eigen::Map<Eigen::VectorXd>(lower_bounds_list.data(), lower_bounds_list.size());
-    upper_bounds_horizon_ = Eigen::Map<Eigen::VectorXd>(upper_bounds_list.data(), upper_bounds_list.size());
   }
 
   void MPC::calculateHessian()
   {
-    Hessian_ = Bqp_.transpose() * Q_ * Bqp_ + R_;
+    Hessian_ = (Bqp_.transpose() * Q_ * Bqp_ + R_);
+    // Convert to sparse matrix for OSQP
+    Hessian_sparse_ = Hessian_.sparseView();
   }
 
   void MPC::calculateGradient()
@@ -346,114 +316,53 @@ namespace g1_mpc
     gradient_ = Bqp_.transpose() * Q_ * ((Aqp_ * x0_) - x_ref_hor_vec_);
   }
 
-  OSQPWorkspace *MPC::solveQP()
-  {
-    // Convert Eigen matrices to OSQP sparse matrices
-    // P matrix (Hessian) should be upper triangular for OSQP
-    Eigen::MatrixXd H_upper = Hessian_.triangularView<Eigen::Upper>();
-    Eigen::SparseMatrix<double> P_sparse = H_upper.sparseView();
-    
-    csc *P_csc = csc_matrix(P_sparse.rows(), P_sparse.cols(),
-                            P_sparse.nonZeros(), P_sparse.valuePtr(),
-                            P_sparse.innerIndexPtr(), P_sparse.outerIndexPtr());
+  Eigen::VectorXd MPC::solveQP(){
+    //Instantiate the solver
+    OsqpEigen::Solver solver;
 
-    // A matrix (constraints)
-    csc *A_csc = csc_matrix(Ac_.rows(), Ac_.cols(),
-                            Ac_.nonZeros(), Ac_.valuePtr(),
-                            Ac_.innerIndexPtr(), Ac_.outerIndexPtr());
+    auto t0 = std::chrono::high_resolution_clock::now();
+    //Configure the solver
+    if (!solver.isInitialized()){
+        solver.settings()->setVerbosity(true);
+        solver.settings()->setWarmStart(true);
+        solver.data()->setNumberOfVariables(num_controls_*horizon_length_);
+        solver.data()->setNumberOfConstraints(num_bounds_*num_contacts_*horizon_length_);
+        solver.data()->setLinearConstraintsMatrix(Ac_);
+        solver.data()->setHessianMatrix(Hessian_sparse_);
+        solver.data()->setGradient(gradient_);
+        solver.data()->setLowerBound(lower_bounds_horizon_);
+        solver.data()->setUpperBound(upper_bounds_horizon_);
+        solver.initSolver();
+        }
+    else{
+        solver.updateGradient(gradient_);
+        solver.updateHessianMatrix(Hessian_sparse_);
+        solver.updateBounds(lower_bounds_horizon_, upper_bounds_horizon_);
+        }
 
-    // Clean up previous data if exists
-    if (data_)
-    {
-      if (data_->A)
-        c_free(data_->A);
-      if (data_->P)
-        c_free(data_->P);
-      c_free(data_);
-    }
+    //Init and solve keeping track of time at each step
 
-    
-    // Set up data
-    data_ = (OSQPData *)c_malloc(sizeof(OSQPData));
-    data_->n = num_controls_ * horizon_length_;
-    data_->m = num_bounds_ * num_contacts_ * horizon_length_;
-    data_->P = P_csc;
-    data_->A = A_csc;
-    data_->q = gradient_.data();
-    data_->l = lower_bounds_horizon_.data();
-    data_->u = upper_bounds_horizon_.data();
-    
-    // Set up settings if not already set
-    if (!settings_)
-    {
-      settings_ = new OSQPSettings();
-      osqp_set_default_settings(settings_);
-      settings_->verbose = true;
-      settings_->warm_start = true;
-    }
-    
-    // Setup solver
-    auto t_start = std::chrono::high_resolution_clock::now();
-    
-    if (qp_solver_)
-    {
-      osqp_cleanup(qp_solver_);
-    }
-    
-    osqp_setup(&qp_solver_, data_, settings_);
-    
-    auto t_setup = std::chrono::high_resolution_clock::now();
-    
-    // Solve problem
-    osqp_solve(qp_solver_);
-    
-    auto t_solve = std::chrono::high_resolution_clock::now();
-    
-    // Extract solution
+    auto t1 = std::chrono::high_resolution_clock::now();
+    solver.solveProblem();
+    auto t2 = std::chrono::high_resolution_clock::now();
+
+    //Process and print time intervals of the solver
+    std::chrono::duration<double, std::milli> init_duration = t1 - t0;
+    std::chrono::duration<double, std::milli> solve_duration = t2 - t1;
+    // std::cout << "Solver init time: " << init_duration.count() << "ms" << std::endl; 
+    // std::cout << "Solve time: " << solve_duration.count() << "ms" << std::endl;
+
+    Eigen::VectorXd result = solver.getSolution();
+
+    // Load result into u_opt0_
+    u_opt0_.resize(num_controls_ * horizon_length_);
     for (int i = 0; i < horizon_length_; i++)
     {
-      for (int j = 0; j < num_controls_; j++)
-      {
-        u_opt_(i, j) = qp_solver_->solution->x[i * num_controls_ + j];
-      }
+      u_opt0_.segment(i * num_controls_, num_controls_) = result.segment(i * num_controls_, num_controls_);
     }
-    
-    // Debug timing info
-    auto setup_time = std::chrono::duration_cast<std::chrono::microseconds>(t_setup - t_start).count() / 1000.0;
-    auto solve_time = std::chrono::duration_cast<std::chrono::microseconds>(t_solve - t_setup).count() / 1000.0;
 
-    // std::cout << "Solver setup time: " << setup_time << "ms" << std::endl;
-    // std::cout << "Solve time: " << solve_time << "ms" << std::endl;
-
-    return qp_solver_;
-  }
-
-  std::pair<Eigen::MatrixXd, Eigen::MatrixXd> MPC::update(
-      const std::vector<std::vector<int>> &contact,
-      const std::vector<std::vector<double>> &c_horizon,
-      const std::vector<std::vector<double>> &p_com_horizon,
-      const Eigen::VectorXd *x_current,
-      bool one_rollout)
-  {
-    extractPsi();
-    calculateRotationMatrixT();
-    setQ();
-    setR();
-    calculateAContinuous();
-    calculateADiscrete();
-    calculateBContinuous(c_horizon, p_com_horizon);
-    calculateBDiscrete();
-    calculateAqp();
-    calculateBqp();
-    calculateAc();
-    calculateBounds(contact);
-    calculateHessian();
-    calculateGradient();
-    solveQP();
-    computeRollout(x_current, one_rollout);
-
-    return {u_opt_, x_opt_};
-  }
+    return result;
+}
 
   void MPC::computeRollout(const Eigen::VectorXd *x_current, bool only_first_step)
   {
@@ -475,14 +384,33 @@ namespace g1_mpc
         return;
       }
     }
+  }
 
-    // Debug output
-    // std::cout << "x_opt: \n" << x_opt_ << std::endl;
-    // std::cout << "u_opt: \n" << u_opt_ << std::endl;
+  std::pair<Eigen::MatrixXd, Eigen::MatrixXd> MPC::updateMPC(
+      const Eigen::MatrixXd &contact,
+      const Eigen::MatrixXd &c_horizon,
+      const Eigen::MatrixXd &p_com_horizon,
+      const Eigen::VectorXd *x_current,
+      bool one_rollout)
+  {
+    extractPsi();
+    calculateRotationMatrixT();
+    setQ();
+    setR();
+    calculateAContinuous();
+    calculateADiscrete();
+    calculateBContinuous(c_horizon, p_com_horizon);
+    calculateBDiscrete();
+    calculateAqp();
+    calculateBqp();
+    calculateAc();
+    calculateBounds(contact);
+    calculateHessian();
+    calculateGradient();
+    solveQP();
+    computeRollout(x_current, one_rollout);
 
-    // Calculate total force on robot
-    Eigen::MatrixXd total_force = u_opt_.rowwise().sum();
-    // std::cout << "Total force on the robot: \n" << total_force << std::endl;
+    return {u_opt_, x_opt_};
   }
 
   void MPC::debugPrintMatrixDimensions() const

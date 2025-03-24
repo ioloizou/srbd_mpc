@@ -1,9 +1,9 @@
 #pragma once
 
+#include <OsqpEigen/OsqpEigen.h>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
-#include <osqp.h>
 #include <vector>
 #include <chrono>
 #include <iostream>
@@ -50,8 +50,8 @@ namespace g1_mpc
 		void calculateADiscrete();
 
 		// Calculate continuous B matrix
-		void calculateBContinuous(const std::vector<std::vector<double>> &c_horizon,
-								  const std::vector<std::vector<double>> &p_com_horizon);
+		void calculateBContinuous(const Eigen::MatrixXd &c_horizon,
+								  const Eigen::MatrixXd &p_com_horizon);
 
 		// Calculate discrete B matrix
 		void calculateBDiscrete();
@@ -66,7 +66,7 @@ namespace g1_mpc
 		void calculateAc();
 
 		// Calculate bounds for the QP
-		void calculateBounds(const std::vector<std::vector<int>> &contact);
+		void calculateBounds(const Eigen::MatrixXd &contact);
 
 		// Calculate Hessian matrix
 		void calculateHessian();
@@ -75,13 +75,13 @@ namespace g1_mpc
 		void calculateGradient();
 
 		// Solve the QP problem
-		OSQPWorkspace *solveQP();
+		Eigen::VectorXd solveQP();
 
 		// Main update function
-		std::pair<Eigen::MatrixXd, Eigen::MatrixXd> update(
-			const std::vector<std::vector<int>> &contact,
-			const std::vector<std::vector<double>> &c_horizon,
-			const std::vector<std::vector<double>> &p_com_horizon,
+		std::pair<Eigen::MatrixXd, Eigen::MatrixXd> updateMPC(
+			const Eigen::MatrixXd &contact,
+			const Eigen::MatrixXd &c_horizon,
+			const Eigen::MatrixXd &p_com_horizon,
 			const Eigen::VectorXd *x_current = nullptr,
 			bool one_rollout = false);
 
@@ -163,6 +163,7 @@ namespace g1_mpc
 		Eigen::MatrixXd R_;
 		Eigen::SparseMatrix<double> Ac_;
 		Eigen::MatrixXd Hessian_;
+		Eigen::SparseMatrix<double> Hessian_sparse_;
 		Eigen::Matrix3d rotation_z_T_;
 
 		// Vectors for QP
@@ -185,11 +186,6 @@ namespace g1_mpc
 		// Matrix for storing contact and p_com info
 		Eigen::MatrixXd c_horizon_;
 		Eigen::MatrixXd p_com_horizon_;
-
-		// OSQP solver
-		OSQPWorkspace *qp_solver_ = nullptr;
-		OSQPSettings *settings_ = nullptr;
-		OSQPData *data_ = nullptr;
 	};
 
 } // namespace g1_mpc

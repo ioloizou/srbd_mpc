@@ -1,6 +1,6 @@
 #include <ros/ros.h>
 #include <memory>
-#include "mpc_osqp_eigen.hpp"
+#include "mpc_osqp_eigen_header.hpp"
 #include "g1_msgs/SRBD_state.h"
 #include "g1_msgs/ContactPoint.h"
 #include "std_msgs/Header.h"
