@@ -5,7 +5,7 @@ namespace g1_mpc
 {
   // Define static members
   const double MPC::g_ = -9.80665;
-  int MPC::horizon_length_ = 15;
+  int MPC::horizon_length_ = 10;
 
   MPC::MPC(double mu, double fz_min, double fz_max, double dt, int horizon_length)
       : dt_(dt),
@@ -64,6 +64,8 @@ namespace g1_mpc
     B_discrete_hor_ = Eigen::MatrixXd::Zero(num_states_ * horizon_length_, num_controls_);
     Bqp_ = Eigen::MatrixXd::Zero(num_states_ * horizon_length_, num_controls_ * horizon_length_);
 
+    Ac_ = Eigen::SparseMatrix<double>(num_bounds_ * num_contacts_ * horizon_length_, num_controls_ * horizon_length_);
+
     lower_bounds_horizon_ = Eigen::VectorXd::Zero(num_bounds_ * num_contacts_ * horizon_length_);
     upper_bounds_horizon_ = Eigen::VectorXd::Zero(num_bounds_ * num_contacts_ * horizon_length_);
 
@@ -87,6 +89,7 @@ namespace g1_mpc
     r_ = Eigen::Vector3d::Zero();
 
     // Preallocate contact and p_com horizon matrices
+    contact_horizon_ = Eigen::MatrixXd::Zero(horizon_length_, num_contacts_ * 3);
     c_horizon_ = Eigen::MatrixXd::Zero(horizon_length_, num_contacts_ * 3);
     p_com_horizon_ = Eigen::MatrixXd::Zero(horizon_length_, 3);
   }
@@ -157,6 +160,8 @@ namespace g1_mpc
   void MPC::calculateBContinuous(const Eigen::MatrixXd &c_horizon,
                                  const Eigen::MatrixXd &p_com_horizon)
   {
+    c_horizon_ = c_horizon;
+    p_com_horizon_ = p_com_horizon;
 
     // Calculate world inertia
     Eigen::Matrix3d inertia_world = rotation_z_T_ * inertia_body_ * rotation_z_T_.transpose();
@@ -245,7 +250,6 @@ namespace g1_mpc
                0,1,-mu_, 
                0,0,1;   
 
-    Ac_ = Eigen::SparseMatrix<double>(num_bounds_ * num_contacts_ * horizon_length_, num_controls_ * horizon_length_);
     std::vector<Eigen::Triplet<double>> tripletList;
     
     tripletList.reserve(9 * 40);  
@@ -272,6 +276,7 @@ namespace g1_mpc
 
   void MPC::calculateBounds(const Eigen::MatrixXd &contact)
   {
+    contact_horizon_ = contact;
     Eigen::VectorXd lower_bounds(num_bounds_ * num_contacts_);
     Eigen::VectorXd upper_bounds(num_bounds_ * num_contacts_);
     
@@ -285,13 +290,13 @@ namespace g1_mpc
                                                 -std::numeric_limits<double>::infinity(),  
                                                  0,                                        
                                                 -std::numeric_limits<double>::infinity(),  
-                                                fz_min_*contact(horizon_step, i);                   
+                                                fz_min_*contact_horizon_(horizon_step, i);                   
                                                  
         upper_bounds.segment(i*num_bounds_, 5) << std::numeric_limits<double>::infinity(),  
                                                  0,                                        
                                                  std::numeric_limits<double>::infinity(),  
                                                  0,                                        
-                                                 fz_max_*contact(horizon_step, i);                   
+                                                 fz_max_*contact_horizon_(horizon_step, i);                   
         }
 
         lower_bounds_horizon_.segment(horizon_step*num_bounds_*num_contacts_, num_bounds_ * num_contacts_) = lower_bounds;
@@ -323,7 +328,7 @@ namespace g1_mpc
     auto t0 = std::chrono::high_resolution_clock::now();
     //Configure the solver
     if (!solver.isInitialized()){
-        solver.settings()->setVerbosity(true);
+        solver.settings()->setVerbosity(false);
         solver.settings()->setWarmStart(true);
         solver.data()->setNumberOfVariables(num_controls_*horizon_length_);
         solver.data()->setNumberOfConstraints(num_bounds_*num_contacts_*horizon_length_);
@@ -354,12 +359,13 @@ namespace g1_mpc
 
     Eigen::VectorXd result = solver.getSolution();
 
-    // Load result into u_opt0_
-    u_opt0_.resize(num_controls_ * horizon_length_);
+    // Load result into u_opt_
     for (int i = 0; i < horizon_length_; i++)
     {
-      u_opt0_.segment(i * num_controls_, num_controls_) = result.segment(i * num_controls_, num_controls_);
+      u_opt_.row(i) = result.segment(i * num_controls_, num_controls_).transpose();
     }
+
+    u_opt0_ = u_opt_.row(0).transpose();
 
     return result;
 }
@@ -378,7 +384,6 @@ namespace g1_mpc
       x_opt_.row(i) = A_discrete_ * x_opt_.row(i - 1).transpose() +
                       B_discrete_hor_.block((i - 1) * num_states_, 0, num_states_, num_controls_) *
                           u_opt_.row(i - 1).transpose();
-
       if (only_first_step)
       {
         return;

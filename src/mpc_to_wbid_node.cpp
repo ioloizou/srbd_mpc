@@ -1,12 +1,10 @@
 #include <ros/ros.h>
 #include <memory>
-#include "mpc_osqp_eigen_header.hpp"
+
+#include "mpc.cpp"
 #include "g1_msgs/SRBD_state.h"
 #include "g1_msgs/ContactPoint.h"
 #include "std_msgs/Header.h"
-#include <pal_statistics/pal_statistics.h>
-
-// static int hi_counter = 0;
 
 class MPCNode
 {
@@ -16,9 +14,6 @@ public:
     // Initialize MPC
     mpc_ = std::make_shared<g1_mpc::MPC>();
     mpc_->initMatrices();
-
-    // Initialize statistics for timing measurements
-    // REGISTER_VARIABLE_FOR_WRITING(mpc_solve_time_, "mpc_solve_time");
 
     // Initialize publishers and subscribers
     sub_current_state_ = nh_.subscribe("/srbd_current", 1, &MPCNode::callbackSrbdCurrent, this);
@@ -56,6 +51,7 @@ public:
       }
     }
 
+    // I can merge this with above
     // Store contact positions in MPC
     Eigen::MatrixXd c_horizon = mpc_->getCHorizon();
     for (int i = 0; i < mpc_->horizon_length_; i++) {
@@ -65,12 +61,12 @@ public:
     }
 
     // Print c_horizon
-    std::cout << "c_horizon: \n" << c_horizon << std::endl;
+    // std::cout << "c_horizon: \n" << c_horizon << std::endl;
     mpc_->setCHorizon(c_horizon);
 
   }
 
-  std::vector<std::vector<int>> gaitPlanner()
+  std::vector<std::vector<int>> gaitPlanner(bool is_standing = true)
   {
     static ros::Time last_switch_time = ros::Time::now();
     static int current_phase = 0;
@@ -95,11 +91,15 @@ public:
         contact_horizon.push_back({0, 0, 1, 1});
       }
     }
+
+    if (is_standing) {
+      std::fill(contact_horizon.begin(), contact_horizon.end(), std::vector<int>{1, 1, 1, 1});
+        }
     
     return contact_horizon;
   }
 
-  void publishMPCSolution()
+  void publishMPCSolution(std::vector<std::vector<int>> contact_horizon)
   {
     g1_msgs::SRBD_state srbd_state_msg;
     srbd_state_msg.header.stamp = ros::Time::now();
@@ -123,9 +123,6 @@ public:
     srbd_state_msg.linear_velocity.y = x_opt(1, 10);
     srbd_state_msg.linear_velocity.z = x_opt(1, 11);
     srbd_state_msg.gravity = x_opt(1, 12);
-    
-    // Get contact information (active/inactive status)
-    auto contact_horizon = gaitPlanner();
     
     // Set contact forces from optimized controls
     std::vector<std::string> contact_names = {
@@ -152,6 +149,9 @@ public:
   void update()
   {    
     // Get contact horizon (which feet are in contact)
+    
+    // If using gait patterns:
+    // contact_horizon = gaitPlanner();
     
     std::vector<std::vector<int>> contact_horizon;
     for (int i = 0; i < mpc_->horizon_length_; i++) {
@@ -186,39 +186,57 @@ public:
       p_com_horizon[i].resize(mpc_->getX0().size());
       for (int j = 0; j < 3; j++) {
         p_com_horizon[i][j+3] = x_ref_hor(i, j+3);
-    }
-    }
-    
-    // Convert c_horizon to vector format
-    Eigen::MatrixXd c_horizon_mat = mpc_->getCHorizon();
-    std::vector<std::vector<double>> c_horizon(mpc_->horizon_length_);
-    for (int i = 0; i < mpc_->horizon_length_; i++) {
-      c_horizon[i].resize(c_horizon_mat.cols());
-      for (int j = 0; j < c_horizon_mat.cols(); j++) {
-        c_horizon[i][j] = c_horizon_mat(i, j);
       }
-    }
+    }    
+    // mpc_->debugPrintMatrixDimensions();
     
-    // If using alternative gait patterns:
-    // contact_horizon = gaitPlanner();
-    
-    mpc_->debugPrintMatrixDimensions();
-
     // Update MPC solution
     auto start_time = ros::WallTime::now();
     
     
     Eigen::VectorXd x_current = mpc_->getX0();
-    mpc_->update(contact_horizon, c_horizon, p_com_horizon, &x_current, true);
+    
+    // Convert std::vector<std::vector<int>> to Eigen::MatrixXd
+    Eigen::MatrixXd contact_horizon_matrix(contact_horizon.size(), contact_horizon[0].size());
+    for (size_t i = 0; i < contact_horizon.size(); ++i) {
+        for (size_t j = 0; j < contact_horizon[i].size(); ++j) {
+          contact_horizon_matrix(i, j) = contact_horizon[i][j];
+        }
+      }
+      
+    Eigen::MatrixXd c_horizon = mpc_->getCHorizon();
+    ROS_INFO_STREAM("c_horizon: \n");
+    
+    // Convert p_com_horizon to Eigen::MatrixXd
+    Eigen::MatrixXd p_com_horizon_matrix(p_com_horizon.size(), p_com_horizon[0].size());
+    for (size_t i = 0; i < p_com_horizon.size(); ++i) {
+        for (size_t j = 0; j < p_com_horizon[i].size(); ++j) {
+            p_com_horizon_matrix(i, j) = p_com_horizon[i][j];
+        }
+    }
+    
+    // Pass matrices instead of vectors
+    mpc_->updateMPC(contact_horizon_matrix, c_horizon, p_com_horizon_matrix, &x_current, true);
     
     mpc_solve_time_ = (ros::WallTime::now() - start_time).toSec() * 1000.0; // ms
     
-    // Publish statistics
-    
-    // PUBLISH_STATISTICS();
-    
     // Publish solution
-    publishMPCSolution();
+    publishMPCSolution(contact_horizon);
+
+    debugMPCVariables();
+  }
+
+  // Debug function to print all MPC-related variables
+  void debugMPCVariables() {
+    ROS_INFO_STREAM("MPC x0: \n" << mpc_->getX0());
+    ROS_INFO_STREAM("MPC x_opt: \n" << mpc_->getXOpt());
+    ROS_INFO_STREAM("MPC u_opt: \n" << mpc_->getUOpt());
+    ROS_INFO_STREAM("MPC x_ref_hor: \n" << mpc_->getXRefHor());
+    ROS_INFO_STREAM("MPC c_horizon: \n" << mpc_->getCHorizon());
+    ROS_INFO_STREAM("MPC p_com_horizon: \n" << mpc_->getPComHorizon());
+    ROS_INFO_STREAM("MPC contact_horizon: \n" << mpc_->getCHorizon());
+    ROS_INFO_STREAM("MPC contact forces (first step): \n" << mpc_->getUOpt().row(0));
+    ROS_INFO_STREAM("MPC solve time: " << mpc_solve_time_ << " ms");
   }
 
 private:
@@ -236,12 +254,15 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "mpc_to_wbid");
   
   MPCNode node;
-  
+
+  // 200 hz
+  ros::Rate rate(200);
   
   while (ros::ok()) {
-    ros::spin();
+    ros::spinOnce();
     node.update();
-    }
+    rate.sleep();
+  }
   
   return 0;
 }

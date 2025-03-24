@@ -49,7 +49,6 @@ add_library(g1_mpc
 # Link against OSQP
 target_link_libraries(g1_mpc
     ${catkin_LIBRARIES}
-    osqp::osqp
     OsqpEigen::OsqpEigen
 )
 

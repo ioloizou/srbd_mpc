@@ -184,6 +184,7 @@ namespace g1_mpc
 		Eigen::Vector3d r_;
 
 		// Matrix for storing contact and p_com info
+		Eigen::MatrixXd contact_horizon_;
 		Eigen::MatrixXd c_horizon_;
 		Eigen::MatrixXd p_com_horizon_;
 	};
