@@ -111,7 +111,11 @@ namespace g1_mpc
 		// Getter and setter methods for r_
 		const Eigen::Vector3d& getr() const { return r_; }
 		void setr(const Eigen::Vector3d& r) { r_ = r; }
-
+		
+		// Getter and setter methods for contact_horizon_
+		const Eigen::MatrixXd& getContactHorizon() const { return contact_horizon_; }
+		void setContactHorizon(const Eigen::MatrixXd& contact_horizon) { contact_horizon_ = contact_horizon; }
+			
 		// Getter and setter methods for p_com_horizon_
 		const Eigen::MatrixXd& getPComHorizon() const { return p_com_horizon_; }
 		void setPComHorizon(const Eigen::MatrixXd& p_com_horizon) { p_com_horizon_ = p_com_horizon; }
