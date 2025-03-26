@@ -5,6 +5,7 @@
 #include "g1_msgs/SRBD_state.h"
 #include "g1_msgs/ContactPoint.h"
 #include "std_msgs/Header.h"
+#include <pal_statistics/pal_statistics_macros.h>
 
 class MPCNode
 {
@@ -17,6 +18,7 @@ public:
         // Initialize publishers and subscribers
         sub_current_state_ = nh_.subscribe("/srbd_current", 1, &MPCNode::callbackSrbdCurrent, this);
         pub_mpc_solution_ = nh_.advertise<g1_msgs::SRBD_state>("/mpc_solution", 10);
+
 
         ROS_INFO("MPC node initialized successfully");
     }
@@ -212,6 +214,11 @@ public:
         mpc_->updateMPC(contact_horizon_matrix, c_horizon, p_com_horizon_matrix, &x_current, true);
         
         mpc_solve_time_ = (ros::WallTime::now() - start_time).toSec() * 1000.0; // ms
+        
+        pal_statistics::RegistrationsRAII registrations;
+        REGISTER_VARIABLE("/mpc_statistics", "MPC Solve time", &mpc_solve_time_, &registrations);
+        PUBLISH_STATISTICS("/mpc_statistics");
+
         
         debugMPCVariables(contact_horizon_matrix, c_horizon, p_com_horizon_matrix);
         // Publish solution

@@ -22,10 +22,9 @@ namespace g1_mpc
     num_controls_ = 3 * num_contacts_;
 
     // Initialize the inertia matrix
-    // Really high inertia parameters!!! Need to look again
-    inertia_body_ << 3.20564, 4.35027e-05, 0.425526,
-        4.35027e-05, 3.05015, -0.00065082,
-        0.425526, -0.00065082, 0.552353;
+    inertia_body_ << 3.20564e-1, 4.35027e-06, 0.425526e-1,
+        4.35027e-06, 3.05015e-1, -0.00065082e-1,
+        0.425526e-1, -0.00065082e-1, 0.552353e-1;
 
     // Initialize state and control vectors
     x_ = Eigen::VectorXd::Zero(num_states_);
