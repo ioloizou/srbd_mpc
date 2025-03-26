@@ -22,6 +22,7 @@ namespace g1_mpc
     num_controls_ = 3 * num_contacts_;
 
     // Initialize the inertia matrix
+    // Really high inertia parameters!!! Need to look again
     inertia_body_ << 3.20564, 4.35027e-05, 0.425526,
         4.35027e-05, 3.05015, -0.00065082,
         0.425526, -0.00065082, 0.552353;
@@ -139,9 +140,6 @@ namespace g1_mpc
 
   void MPC::calculateAContinuous()
   {
-    // Reset the matrix to zero first
-    A_continuous_.setZero();
-
     // Upper-right 3x3 block: rotation matrix
     A_continuous_.block(0, 6, 3, 3) = rotation_z_T_.transpose();
 
@@ -170,13 +168,11 @@ namespace g1_mpc
     // For each horizon step
     for (int i = 0; i < horizon_length_; i++)
     {
-      B_continuous_.setZero();
-
       for (int j = 0; j < num_contacts_; j++)
       {
         // Extract contact point and COM position
         Eigen::Vector3d contact_pos(c_horizon_(i, 3 * j), c_horizon_(i, 3 * j + 1), c_horizon_(i, 3 * j + 2));
-        Eigen::Vector3d com_pos(p_com_horizon_(i, 3), p_com_horizon_(i, 4), p_com_horizon_(i, 5));
+        Eigen::Vector3d com_pos(p_com_horizon_(i, 0), p_com_horizon_(i, 1), p_com_horizon_(i, 2));
 
         // Vector from COM to contact point
         r_ = contact_pos - com_pos;
@@ -315,7 +311,10 @@ namespace g1_mpc
   void MPC::calculateGradient()
   {
     // Reshape x_ref_hor to vector for gradient computation
-    x_ref_hor_vec_ = Eigen::Map<Eigen::VectorXd>(x_ref_hor_.data(), num_states_ * horizon_length_);
+    for (int i = 0; i < horizon_length_; i++){
+      x_ref_hor_vec_.segment(i*num_states_, num_states_) = x_ref_hor_.row(i).transpose();
+    }
+    // std::cout << "x_ref_hor_vec_: " << x_ref_hor_vec_ << std::endl;
 
     // Calculate gradient
     gradient_ = Bqp_.transpose() * Q_ * ((Aqp_ * x0_) - x_ref_hor_vec_);
@@ -362,10 +361,10 @@ namespace g1_mpc
     // Load result into u_opt_
     for (int i = 0; i < horizon_length_; i++)
     {
-      u_opt_.row(i) = result.segment(i * num_controls_, num_controls_).transpose();
+      u_opt_.row(i) = result.segment(i * num_controls_, num_controls_);
     }
 
-    u_opt0_ = u_opt_.row(0).transpose();
+    u_opt0_ = u_opt_.row(0);
 
     return result;
 }

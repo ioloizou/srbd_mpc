@@ -10,7 +10,6 @@ find_package(catkin REQUIRED COMPONENTS
     geometry_msgs
     pal_statistics
     roscpp
-    g1_msgs
 )
 
 # To not raise errors when using Eigen's stack allocation

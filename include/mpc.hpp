@@ -20,7 +20,7 @@ namespace g1_mpc
 		static int horizon_length_;
 
 		// Constructor
-		MPC(double mu = 0.3, double fz_min = 10.0, double fz_max = 666.0, double dt = 0.04, int horizon_length = 15);
+		MPC(double mu = 0.3, double fz_min = 10.0, double fz_max = 666.0, double dt = 0.04, int horizon_length = 10);
 
 		// Destructor
 		~MPC();
