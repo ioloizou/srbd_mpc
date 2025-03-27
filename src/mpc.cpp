@@ -21,14 +21,31 @@ namespace g1_mpc
     // Set number of controls (3 forces per contact)
     num_controls_ = 3 * num_contacts_;
 
-    // Initialize the inertia matrix
+    // // Initialize the inertia matrix NEED TO CHECK WHICH IS CORRECT
     inertia_body_ << 3.20564e-1, 4.35027e-06, 0.425526e-1,
         4.35027e-06, 3.05015e-1, -0.00065082e-1,
         0.425526e-1, -0.00065082e-1, 0.552353e-1;
 
+    // Initialize the inertia matrix
+    // inertia_body_ << 3.20564, 4.35027e-05, 0.425526,
+    // 4.35027e-05, 3.05015, -0.00065082,
+    // 0.425526, -0.00065082, 0.552353;
+
     // Initialize state and control vectors
     x_ = Eigen::VectorXd::Zero(num_states_);
     u_ = Eigen::VectorXd::Zero(num_controls_);
+
+    // MIT
+    // Eigen::VectorXd q_diag(num_states_);
+    // q_diag << 75e1, 75e0, 125e1,
+    //       8e3, 2e4, 3e4,
+    //       8e2, 2e3, 3e4,
+    //       5e2, 5e3, 5e2,
+    //       0;
+    // Q_weights_ = q_diag.asDiagonal();
+
+    // Eigen::VectorXd r_diag = Eigen::VectorXd::Constant(num_controls_, 0.01);
+    // R_weights_ = r_diag.asDiagonal();
 
     // Set up Q weights - Standing double support weights
     Eigen::VectorXd q_diag(num_states_);
@@ -41,6 +58,28 @@ namespace g1_mpc
     // Set up R weights
     Eigen::VectorXd r_diag = Eigen::VectorXd::Constant(num_controls_, 0.001);
     R_weights_ = r_diag.asDiagonal();
+
+    // // Set up Q weights - Standing double support weights
+    // Eigen::VectorXd q_diag(num_states_);
+    // q_diag << 7e5, 7e4, 1e4,
+    //     5e5, 5e5, 3e6,
+    //     3e3, 3e3, 3e3,
+    //     5e3, 1e3, 1e4, 0;
+    // Q_weights_ = q_diag.asDiagonal();
+
+    // // Set up R weights
+    // Eigen::VectorXd r_diag = Eigen::VectorXd::Constant(num_controls_, 0.001);
+    // R_weights_ = r_diag.asDiagonal();
+
+    // Test weights
+    // Eigen::VectorXd q_diag(num_states_);
+    // q_diag << 2e1, 9e1, 5e1, 
+    //           3e3, 2e4, 2e4, 
+    //           5e2, 5e2, 1e1, 
+    //           1e1, 9e2, 1e1, 0;
+
+    // Eigen::VectorXd r_diag = Eigen::VectorXd::Constant(num_controls_, 0.001);
+    // R_weights_ = r_diag.asDiagonal();
 
     // Initialize all matrices for the solver
     initMatrices();

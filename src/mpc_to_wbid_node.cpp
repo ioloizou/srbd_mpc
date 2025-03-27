@@ -20,12 +20,12 @@ public:
         pub_mpc_solution_ = nh_.advertise<g1_msgs::SRBD_state>("/mpc_solution", 10);
 
 
-        ROS_INFO("MPC node initialized successfully");
+        // ROS_INFO("MPC node initialized successfully");
     }
 
     void callbackSrbdCurrent(const g1_msgs::SRBD_state::ConstPtr &msg)
     {
-        ROS_INFO("Received SRBD current state message");
+        // ROS_INFO("Received SRBD current state message");
         Eigen::VectorXd x0(13);
         x0[0] = msg->orientation.x;
         x0[1] = msg->orientation.y;
@@ -59,11 +59,11 @@ public:
         received_state_ = true;
     }
 
-    std::vector<std::vector<int>> gaitPlanner(bool is_standing = true)
+    std::vector<std::vector<int>> gaitPlanner(bool is_standing = false)
     {
         static ros::Time last_switch_time = ros::Time::now();
         static int current_phase = 0;
-        const double stance_duration = 3.2; // seconds
+        const double stance_duration = 0.4; // seconds
 
         // Calculate elapsed time since last switch
         ros::Time current_time = ros::Time::now();
@@ -152,7 +152,7 @@ public:
             // ROS_WARN("No state callback received yet; skipping MPC update.");
             return;
         }
-        ROS_INFO("Updating MPC...");
+        // ROS_INFO("Updating MPC...");
         // Get contact horizon (which feet are in contact)
 
         // If using gait patterns:
@@ -175,8 +175,8 @@ public:
         {
             x_ref_hor(i, 3) = x_const;
             x_ref_hor(i, 4) = y_center;
-            x_ref_hor(i, 5) = z_center;
-            // Uncomment to add oscillation: - radius * std::cos(speed*M_PI*time)
+            x_ref_hor(i, 5) = z_center; 
+            // - radius/2 * std::cos(speed*M_PI*time);
             x_ref_hor(i, 12) = mpc_->g_;
         }
         mpc_->setXRefHor(x_ref_hor);
@@ -220,7 +220,7 @@ public:
         PUBLISH_STATISTICS("/mpc_statistics");
 
         
-        debugMPCVariables(contact_horizon_matrix, c_horizon, p_com_horizon_matrix);
+        // debugMPCVariables(contact_horizon_matrix, c_horizon, p_com_horizon_matrix);
         // Publish solution
         publishMPCSolution(contact_horizon);
     }
