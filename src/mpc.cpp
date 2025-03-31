@@ -48,16 +48,16 @@ namespace g1_mpc
     // R_weights_ = r_diag.asDiagonal();
 
     // Set up Q weights - Standing double support weights
-    Eigen::VectorXd q_diag(num_states_);
-    q_diag << 7e5, 7e4, 1e4,
-        5e5, 5e5, 3e6,
-        3e3, 3e3, 3e3,
-        5e3, 1e3, 1e4, 0;
-    Q_weights_ = q_diag.asDiagonal();
+    // Eigen::VectorXd q_diag(num_states_);
+    // q_diag << 7e5, 7e4, 1e4,
+    //     5e5, 5e5, 3e6,
+    //     3e3, 3e3, 3e3,
+    //     5e3, 1e3, 1e4, 0;
+    // Q_weights_ = q_diag.asDiagonal();
 
-    // Set up R weights
-    Eigen::VectorXd r_diag = Eigen::VectorXd::Constant(num_controls_, 0.001);
-    R_weights_ = r_diag.asDiagonal();
+    // // Set up R weights
+    // Eigen::VectorXd r_diag = Eigen::VectorXd::Constant(num_controls_, 0.001);
+    // R_weights_ = r_diag.asDiagonal();
 
     // // Set up Q weights - Standing double support weights
     // Eigen::VectorXd q_diag(num_states_);
@@ -72,14 +72,15 @@ namespace g1_mpc
     // R_weights_ = r_diag.asDiagonal();
 
     // Test weights
-    // Eigen::VectorXd q_diag(num_states_);
-    // q_diag << 2e1, 9e1, 5e1, 
-    //           3e3, 2e4, 2e4, 
-    //           5e2, 5e2, 1e1, 
-    //           1e1, 9e2, 1e1, 0;
+    Eigen::VectorXd q_diag(num_states_);
+    q_diag << 2e1, 9e1, 5e1, 
+              1e5, 1e5, 1e5, 
+              5e2, 5e2, 1e2, 
+              5e2, 9e2, 9e2, 0;
+    Q_weights_ = q_diag.asDiagonal();
 
-    // Eigen::VectorXd r_diag = Eigen::VectorXd::Constant(num_controls_, 0.001);
-    // R_weights_ = r_diag.asDiagonal();
+    Eigen::VectorXd r_diag = Eigen::VectorXd::Constant(num_controls_, 0.001);
+    R_weights_ = r_diag.asDiagonal();
 
     // Initialize all matrices for the solver
     initMatrices();

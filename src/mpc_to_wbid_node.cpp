@@ -59,7 +59,7 @@ public:
         received_state_ = true;
     }
 
-    std::vector<std::vector<int>> gaitPlanner(bool is_standing = false)
+    std::vector<std::vector<int>> gaitPlanner(bool is_standing = true)
     {
         static ros::Time last_switch_time = ros::Time::now();
         static int current_phase = 0;
@@ -174,9 +174,9 @@ public:
         for (int i = 0; i < mpc_->horizon_length_; i++)
         {
             x_ref_hor(i, 3) = x_const;
-            x_ref_hor(i, 4) = y_center;
-            x_ref_hor(i, 5) = z_center; 
-            // - radius/2 * std::cos(speed*M_PI*time);
+            x_ref_hor(i, 4) = y_center; 
+            // - radius/10 * std::cos(speed*M_PI*time);
+            x_ref_hor(i, 5) = z_center - radius/2 * std::cos(speed*M_PI*time);
             x_ref_hor(i, 12) = mpc_->g_;
         }
         mpc_->setXRefHor(x_ref_hor);
