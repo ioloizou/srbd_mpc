@@ -15,12 +15,11 @@ namespace g1_mpc
 	class MPC
 	{
 	public:
-		// Static members for Python access - C++14 compatible
 		static const double g_; // m/s^2 Gravity
 		static int horizon_length_;
 
 		// Constructor
-		MPC(double mu = 0.3, double fz_min = 10.0, double fz_max = 666.0, double dt = 0.04, int horizon_length = 10);
+		MPC(double mu = 0.3, double fz_min = 10.0, double fz_max = 1000.0, double dt = 0.04, int horizon_length = 10);
 
 		// Destructor
 		~MPC();

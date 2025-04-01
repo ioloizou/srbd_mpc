@@ -5,12 +5,13 @@
 #include "g1_msgs/SRBD_state.h"
 #include "g1_msgs/ContactPoint.h"
 #include "std_msgs/Header.h"
+#include "rosgraph_msgs/Clock.h"
 #include <pal_statistics/pal_statistics_macros.h>
 
 class MPCNode
 {
 public:
-    MPCNode() : nh_(""), received_state_(false)
+    MPCNode() : nh_(""), received_state_(false), simulation_time_(0.0)
     {
         // Initialize MPC
         mpc_ = std::make_shared<g1_mpc::MPC>();
@@ -18,7 +19,9 @@ public:
         // Initialize publishers and subscribers
         sub_current_state_ = nh_.subscribe("/srbd_current", 1, &MPCNode::callbackSrbdCurrent, this);
         pub_mpc_solution_ = nh_.advertise<g1_msgs::SRBD_state>("/mpc_solution", 10);
-
+        
+        // Subscribe to simulation time
+        sub_sim_time_ = nh_.subscribe("/simulation_time", 1, &MPCNode::callbackSimTime, this);
 
         // ROS_INFO("MPC node initialized successfully");
     }
@@ -58,16 +61,24 @@ public:
         // Flag that the callback has been received at least once
         received_state_ = true;
     }
-
-    std::vector<std::vector<int>> gaitPlanner(bool is_standing = true)
+    
+    void callbackSimTime(const rosgraph_msgs::Clock &msg)
     {
-        static ros::Time last_switch_time = ros::Time::now();
+        simulation_time_ = msg.clock.toSec();
+    }
+
+    std::vector<std::vector<int>> gaitPlanner(bool is_standing = false)
+    {
+        static double last_switch_time = 0.0;
         static int current_phase = 0;
         const double stance_duration = 0.4; // seconds
 
+        // Use simulation time if available, otherwise use ROS time
+        double current_time = simulation_time_;
+        // > 0.0 ? simulation_time_ : ros::Time::now().toSec();
+        
         // Calculate elapsed time since last switch
-        ros::Time current_time = ros::Time::now();
-        double elapsed = (current_time - last_switch_time).toSec();
+        double elapsed = current_time - last_switch_time;
 
         // Check if it's time to switch gait pattern
         if (elapsed >= stance_duration)
@@ -174,9 +185,9 @@ public:
         for (int i = 0; i < mpc_->horizon_length_; i++)
         {
             x_ref_hor(i, 3) = x_const;
-            x_ref_hor(i, 4) = y_center; 
-            // - radius/10 * std::cos(speed*M_PI*time);
-            x_ref_hor(i, 5) = z_center - radius/2 * std::cos(speed*M_PI*time);
+            x_ref_hor(i, 4) = y_center;
+            //  - radius * std::cos(1.5*speed*M_PI*time);
+            x_ref_hor(i, 5) = z_center - radius/2 * std::cos(speed*5*M_PI*time);
             x_ref_hor(i, 12) = mpc_->g_;
         }
         mpc_->setXRefHor(x_ref_hor);
@@ -258,10 +269,12 @@ public:
 private:
     ros::NodeHandle nh_;
     ros::Subscriber sub_current_state_;
+    ros::Subscriber sub_sim_time_;
     ros::Publisher pub_mpc_solution_;
 
     std::shared_ptr<g1_mpc::MPC> mpc_;
-    bool received_state_; // New flag to indicate state received
+    bool received_state_; // Flag to indicate state received
+    double simulation_time_; // Store simulation time
     double mpc_solve_time_; // For statistics
 };
 
