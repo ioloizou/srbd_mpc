@@ -112,7 +112,7 @@ public:
     void publishMPCSolution(std::vector<std::vector<int>> contact_horizon)
     {
         g1_msgs::SRBD_state srbd_state_msg;
-        srbd_state_msg.header.stamp = ros::Time::now();
+        srbd_state_msg.header.stamp = ros::Time(simulation_time_);
         srbd_state_msg.header.frame_id = "SRBD";
 
         // Get the optimal state trajectory and control inputs
@@ -170,7 +170,7 @@ public:
         std::vector<std::vector<int>> contact_horizon = gaitPlanner();
 
         // Get current time
-        double time = ros::Time::now().toSec();
+        double time = simulation_time_;
 
         // Update reference trajectory
         Eigen::MatrixXd x_ref_hor = mpc_->getXRefHor();
