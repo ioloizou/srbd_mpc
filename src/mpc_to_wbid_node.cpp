@@ -19,7 +19,7 @@ public:
         // Initialize publishers and subscribers
         sub_current_state_ = nh_.subscribe("/srbd_current", 1, &MPCNode::callbackSrbdCurrent, this);
         pub_mpc_solution_ = nh_.advertise<g1_msgs::SRBD_state>("/mpc_solution", 10);
-        
+
         // Subscribe to simulation time
         sub_sim_time_ = nh_.subscribe("/simulation_time", 1, &MPCNode::callbackSimTime, this);
 
@@ -61,7 +61,7 @@ public:
         // Flag that the callback has been received at least once
         received_state_ = true;
     }
-    
+
     void callbackSimTime(const rosgraph_msgs::Clock &msg)
     {
         simulation_time_ = msg.clock.toSec();
@@ -72,11 +72,12 @@ public:
         static double last_switch_time = 0.0;
         static int current_phase = 0;
         const double stance_duration = 0.4; // seconds
+        const double initial_double_support_duration = 0.5; // seconds 
 
         // Use simulation time if available, otherwise use ROS time
         double current_time = simulation_time_;
         // > 0.0 ? simulation_time_ : ros::Time::now().toSec();
-        
+
         // Calculate elapsed time since last switch
         double elapsed = current_time - last_switch_time;
 
@@ -91,13 +92,22 @@ public:
         std::vector<std::vector<int>> contact_horizon;
         for (int i = 0; i < mpc_->horizon_length_; i++)
         {
-            if (current_phase == 0)
+            // Start from double support
+            if (simulation_time_ < initial_double_support_duration)
             {
-                contact_horizon.push_back({1, 1, 0, 0});
+                // Start with all feet in contact
+                contact_horizon.push_back({1, 1, 1, 1});
             }
             else
             {
-                contact_horizon.push_back({0, 0, 1, 1});
+                if (current_phase == 0)
+                {
+                    contact_horizon.push_back({1, 1, 0, 0});
+                }
+                else
+                {
+                    contact_horizon.push_back({0, 0, 1, 1});
+                }
             }
         }
 
@@ -159,7 +169,8 @@ public:
     void update()
     {
         // Ensure we have received an initial state before proceeding
-        if (!received_state_) {
+        if (!received_state_)
+        {
             // ROS_WARN("No state callback received yet; skipping MPC update.");
             return;
         }
@@ -186,8 +197,9 @@ public:
         {
             x_ref_hor(i, 3) = x_const;
             x_ref_hor(i, 4) = y_center;
-            //  - radius * std::cos(1.5*speed*M_PI*time);
-            x_ref_hor(i, 5) = z_center - radius/2 * std::cos(speed*5*M_PI*time);
+            // - radius/16 * std::cos(speed*M_PI*time);
+            x_ref_hor(i, 5) = z_center;
+            // - radius/2 * std::cos(speed*5*M_PI*time);
             x_ref_hor(i, 12) = mpc_->g_;
         }
         mpc_->setXRefHor(x_ref_hor);
@@ -202,42 +214,41 @@ public:
                 p_com_horizon_matrix(i, j) = x_ref_hor(i, j + 3);
             }
         }
-        
+
         // Update MPC solution
         auto start_time = ros::WallTime::now();
-        
+
         Eigen::VectorXd x_current = mpc_->getX0();
-        
+
         // Convert std::vector<std::vector<int>> to Eigen::MatrixXd
         Eigen::MatrixXd contact_horizon_matrix(contact_horizon.size(), contact_horizon[0].size());
         for (size_t i = 0; i < contact_horizon.size(); ++i)
         {
-          for (size_t j = 0; j < contact_horizon[i].size(); ++j)
-          {
-            contact_horizon_matrix(i, j) = contact_horizon[i][j];
-          }
+            for (size_t j = 0; j < contact_horizon[i].size(); ++j)
+            {
+                contact_horizon_matrix(i, j) = contact_horizon[i][j];
+            }
         }
-        
+
         Eigen::MatrixXd c_horizon = mpc_->getCHorizon();
         // mpc_->debugPrintMatrixDimensions();
-        
+
         // Pass matrices instead of vectors
         mpc_->updateMPC(contact_horizon_matrix, c_horizon, p_com_horizon_matrix, &x_current, true);
-        
+
         mpc_solve_time_ = (ros::WallTime::now() - start_time).toSec() * 1000.0; // ms
-        
+
         pal_statistics::RegistrationsRAII registrations;
         REGISTER_VARIABLE("/mpc_statistics", "MPC Solve time", &mpc_solve_time_, &registrations);
         PUBLISH_STATISTICS("/mpc_statistics");
 
-        
         // debugMPCVariables(contact_horizon_matrix, c_horizon, p_com_horizon_matrix);
         // Publish solution
         publishMPCSolution(contact_horizon);
     }
 
     // Debug function to print all MPC-related variables
-    void debugMPCVariables(Eigen::MatrixXd const &contact_horizon_matrix, 
+    void debugMPCVariables(Eigen::MatrixXd const &contact_horizon_matrix,
                            Eigen::MatrixXd const &c_horizon_matrix,
                            Eigen::MatrixXd const &p_com_horizon_matrix)
     {
@@ -262,7 +273,7 @@ public:
         ROS_INFO_STREAM("MPC u_opt: \n"
                         << mpc_->getUOpt());
         ROS_INFO_STREAM("MPC contact forces (first step): \n"
-                        << mpc_->getUOpt().row(0));      
+                        << mpc_->getUOpt().row(0));
         ROS_INFO_STREAM("MPC solve time: " << mpc_solve_time_ << " ms");
     }
 
@@ -273,9 +284,9 @@ private:
     ros::Publisher pub_mpc_solution_;
 
     std::shared_ptr<g1_mpc::MPC> mpc_;
-    bool received_state_; // Flag to indicate state received
+    bool received_state_;    // Flag to indicate state received
     double simulation_time_; // Store simulation time
-    double mpc_solve_time_; // For statistics
+    double mpc_solve_time_;  // For statistics
 };
 
 int main(int argc, char **argv)
