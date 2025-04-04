@@ -71,8 +71,8 @@ public:
     {
         static double last_switch_time = 0.0;
         static int current_phase = 0;
-        const double stance_duration = 0.4; // seconds
-        const double initial_double_support_duration = 0.5; // seconds 
+        const double stance_duration = 0.2; // seconds
+        const double initial_double_support_duration = 0.2; // seconds 
 
         // Use simulation time if available, otherwise use ROS time
         double current_time = simulation_time_;
@@ -88,28 +88,93 @@ public:
             last_switch_time = current_time;
         }
 
+        // New gait planning
+        const int PLANNING_HORIZON = 40;
+        Eigen::MatrixXd contact_planning(PLANNING_HORIZON, mpc_->getNumContacts());
+        contact_planning << 1, 1, 1, 1,
+                            1, 1, 1, 1,
+                            1, 1, 1, 1,
+                            1, 1, 1, 1,
+                            1, 1, 1, 1,
+                            0, 0, 1, 1,
+                            0, 0, 1, 1,
+                            0, 0, 1, 1,
+                            0, 0, 1, 1,
+                            0, 0, 1, 1,
+                            1, 1, 0, 0,
+                            1, 1, 0, 0,
+                            1, 1, 0, 0,
+                            1, 1, 0, 0,
+                            1, 1, 0, 0,
+                            0, 0, 1, 1,
+                            0, 0, 1, 1,
+                            0, 0, 1, 1,
+                            0, 0, 1, 1,
+                            0, 0, 1, 1,
+                            1, 1, 0, 0,
+                            1, 1, 0, 0,
+                            1, 1, 0, 0,
+                            1, 1, 0, 0,
+                            1, 1, 0, 0,
+                            0, 0, 1, 1,
+                            0, 0, 1, 1,
+                            0, 0, 1, 1,
+                            0, 0, 1, 1,
+                            0, 0, 1, 1,
+                            1, 1, 0, 0,
+                            1, 1, 0, 0,
+                            1, 1, 0, 0,
+                            1, 1, 0, 0,
+                            1, 1, 0, 0,
+                            0, 0, 1, 1,
+                            0, 0, 1, 1,
+                            0, 0, 1, 1,
+                            0, 0, 1, 1,
+                            0, 0, 1, 1; 
+        
+        const int gait_phase = std::floor(current_time / mpc_->getDt()); 
+        const int k = gait_phase % mpc_->horizon_length_;
+        ROS_INFO_STREAM("Gait phase: " << gait_phase << ", k: " << k);
+        
+
         // Create contact horizon based on current phase
-        std::vector<std::vector<int>> contact_horizon;
+        std::vector<std::vector<int>> contact_horizon(mpc_->horizon_length_, std::vector<int>(mpc_->getNumContacts(), 0));
         for (int i = 0; i < mpc_->horizon_length_; i++)
         {
-            // Start from double support
-            if (simulation_time_ < initial_double_support_duration)
-            {
-                // Start with all feet in contact
-                contact_horizon.push_back({1, 1, 1, 1});
-            }
-            else
-            {
-                if (current_phase == 0)
-                {
-                    contact_horizon.push_back({1, 1, 0, 0});
-                }
-                else
-                {
-                    contact_horizon.push_back({0, 0, 1, 1});
-                }
+            // // Start from double support
+            // if (simulation_time_ < initial_double_support_duration)
+            // {
+            //     // Start with all feet in contact
+            //     for (int j = 0; j < mpc_->getNumContacts(); j++) {
+            //         contact_horizon[i][j] = 1;
+            //     }
+            // }
+            // else
+            // {
+            //     if (current_phase == 0)
+            //     {
+            //         contact_horizon.push_back({1, 1, 0, 0});
+            //     }
+            //     else
+            //     {
+            //         contact_horizon.push_back({0, 0, 1, 1});
+            //     }
+                contact_horizon[i][0] = contact_planning(i + k, 0);
+                contact_horizon[i][1] = contact_planning(i + k, 1);
+                contact_horizon[i][2] = contact_planning(i + k, 2);
+                contact_horizon[i][3] = contact_planning(i + k, 3);
+            // }
+            
+        }
+        
+        Eigen::MatrixXd contact_horizon_eigen = Eigen::MatrixXd::Zero(contact_horizon.size(), 4);
+        for (size_t i = 0; i < contact_horizon.size(); ++i) {
+            for (int j = 0; j < 4; ++j) {
+                contact_horizon_eigen(i, j) = contact_horizon[i][j];
             }
         }
+        ROS_INFO_STREAM("Contact horizon: \n" << contact_horizon_eigen);
+        
 
         if (is_standing)
         {

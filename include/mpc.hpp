@@ -123,6 +123,12 @@ namespace g1_mpc
 		const Eigen::MatrixXd& getCHorizon() const { return c_horizon_; }
 		void setCHorizon(const Eigen::MatrixXd& c_horizon) { c_horizon_ = c_horizon; }
 		
+		// Getter method for num_contacts_
+		int getNumContacts() const { return num_contacts_; }
+
+		// Getter method for dt_
+		double getDt() const { return dt_; }
+		
 		// Debugging function to print matrix dimensions
 		void debugPrintMatrixDimensions() const;
 	private:
