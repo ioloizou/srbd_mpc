@@ -89,7 +89,7 @@ public:
         }
 
         // New gait planning
-        const int PLANNING_HORIZON = 40;
+        const int PLANNING_HORIZON = 20;
         Eigen::MatrixXd contact_planning(PLANNING_HORIZON, mpc_->getNumContacts());
         contact_planning << 1, 1, 1, 1,
                             1, 1, 1, 1,
@@ -110,29 +110,32 @@ public:
                             0, 0, 1, 1,
                             0, 0, 1, 1,
                             0, 0, 1, 1,
-                            0, 0, 1, 1,
-                            1, 1, 0, 0,
-                            1, 1, 0, 0,
-                            1, 1, 0, 0,
-                            1, 1, 0, 0,
-                            1, 1, 0, 0,
-                            0, 0, 1, 1,
-                            0, 0, 1, 1,
-                            0, 0, 1, 1,
-                            0, 0, 1, 1,
-                            0, 0, 1, 1,
-                            1, 1, 0, 0,
-                            1, 1, 0, 0,
-                            1, 1, 0, 0,
-                            1, 1, 0, 0,
-                            1, 1, 0, 0,
-                            0, 0, 1, 1,
-                            0, 0, 1, 1,
-                            0, 0, 1, 1,
-                            0, 0, 1, 1,
                             0, 0, 1, 1; 
         
         const int gait_phase = std::floor(current_time / mpc_->getDt()); 
+        if (gait_phase >= 9){
+            contact_planning << 1, 1, 0, 0,
+                                1, 1, 0, 0,
+                                1, 1, 0, 0,
+                                1, 1, 0, 0,
+                                1, 1, 0, 0,
+                                0, 0, 1, 1,
+                                0, 0, 1, 1,
+                                0, 0, 1, 1,
+                                0, 0, 1, 1,
+                                0, 0, 1, 1,
+                                1, 1, 0, 0,
+                                1, 1, 0, 0,
+                                1, 1, 0, 0,
+                                1, 1, 0, 0,
+                                1, 1, 0, 0,
+                                0, 0, 1, 1,
+                                0, 0, 1, 1,
+                                0, 0, 1, 1,
+                                0, 0, 1, 1,
+                                0, 0, 1, 1; 
+        }
+        
         const int k = gait_phase % mpc_->horizon_length_;
         ROS_INFO_STREAM("Gait phase: " << gait_phase << ", k: " << k);
         
@@ -141,30 +144,10 @@ public:
         std::vector<std::vector<int>> contact_horizon(mpc_->horizon_length_, std::vector<int>(mpc_->getNumContacts(), 0));
         for (int i = 0; i < mpc_->horizon_length_; i++)
         {
-            // // Start from double support
-            // if (simulation_time_ < initial_double_support_duration)
-            // {
-            //     // Start with all feet in contact
-            //     for (int j = 0; j < mpc_->getNumContacts(); j++) {
-            //         contact_horizon[i][j] = 1;
-            //     }
-            // }
-            // else
-            // {
-            //     if (current_phase == 0)
-            //     {
-            //         contact_horizon.push_back({1, 1, 0, 0});
-            //     }
-            //     else
-            //     {
-            //         contact_horizon.push_back({0, 0, 1, 1});
-            //     }
-                contact_horizon[i][0] = contact_planning(i + k, 0);
-                contact_horizon[i][1] = contact_planning(i + k, 1);
-                contact_horizon[i][2] = contact_planning(i + k, 2);
-                contact_horizon[i][3] = contact_planning(i + k, 3);
-            // }
-            
+            contact_horizon[i][0] = contact_planning(i + k, 0);
+            contact_horizon[i][1] = contact_planning(i + k, 1);
+            contact_horizon[i][2] = contact_planning(i + k, 2);
+            contact_horizon[i][3] = contact_planning(i + k, 3);
         }
         
         Eigen::MatrixXd contact_horizon_eigen = Eigen::MatrixXd::Zero(contact_horizon.size(), 4);
