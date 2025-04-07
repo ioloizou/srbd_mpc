@@ -38,16 +38,16 @@ namespace g1_mpc
     // MIT
     Eigen::VectorXd q_diag(num_states_);
     q_diag << 75e1, 75e0, 125e1,
-          8e3, 2e4, 3e4,
+          8e2, 2e3, 3e4,
           8e2, 2e3, 3e4,
           5e2, 5e3, 5e2,
           0;
     Q_weights_ = q_diag.asDiagonal();
 
-    Eigen::VectorXd r_diag = Eigen::VectorXd::Constant(num_controls_, 0.01);
+    Eigen::VectorXd r_diag = Eigen::VectorXd::Constant(num_controls_, 0.001);
     R_weights_ = r_diag.asDiagonal();
 
-    // Set up Q weights - Standing double support weights
+    // // Set up Q weights - Standing double support weights
     // Eigen::VectorXd q_diag(num_states_);
     // q_diag << 7e5, 7e4, 1e4,
     //     5e5, 5e5, 3e6,
@@ -71,7 +71,7 @@ namespace g1_mpc
     // Eigen::VectorXd r_diag = Eigen::VectorXd::Constant(num_controls_, 0.001);
     // R_weights_ = r_diag.asDiagonal();
 
-    // // Walking in place weights
+    // // // Walking in place weights
     // Eigen::VectorXd q_diag(num_states_);
     // q_diag << 2e3, 9e3, 5e2, 
     //           3e3, 2e4, 2e4, 

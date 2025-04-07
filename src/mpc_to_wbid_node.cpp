@@ -70,25 +70,15 @@ public:
     std::vector<std::vector<int>> gaitPlanner(bool is_standing = false)
     {
         static double last_switch_time = 0.0;
-        static int current_phase = 0;
-        const double stance_duration = 0.2; // seconds
-        const double initial_double_support_duration = 0.2; // seconds 
+        const double stance_duration = 0.25; // seconds
 
         // Use simulation time if available, otherwise use ROS time
         double current_time = simulation_time_;
-        // > 0.0 ? simulation_time_ : ros::Time::now().toSec();
 
         // Calculate elapsed time since last switch
         double elapsed = current_time - last_switch_time;
 
-        // Check if it's time to switch gait pattern
-        if (elapsed >= stance_duration)
-        {
-            current_phase = (current_phase + 1) % 2;
-            last_switch_time = current_time;
-        }
-
-        // New gait planning
+        // Gait planning
         const int PLANNING_HORIZON = 20;
         Eigen::MatrixXd contact_planning(PLANNING_HORIZON, mpc_->getNumContacts());
         contact_planning << 1, 1, 1, 1,
@@ -137,7 +127,7 @@ public:
         }
         
         const int k = gait_phase % mpc_->horizon_length_;
-        ROS_INFO_STREAM("Gait phase: " << gait_phase << ", k: " << k);
+        // ROS_INFO_STREAM("Gait phase: " << gait_phase << ", k: " << k);
         
 
         // Create contact horizon based on current phase
@@ -156,7 +146,7 @@ public:
                 contact_horizon_eigen(i, j) = contact_horizon[i][j];
             }
         }
-        ROS_INFO_STREAM("Contact horizon: \n" << contact_horizon_eigen);
+        // ROS_INFO_STREAM("Contact horizon: \n" << contact_horizon_eigen);
         
 
         if (is_standing)
@@ -342,7 +332,7 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "mpc_to_wbid");
 
     MPCNode node;
-    ros::Rate rate(300);
+    ros::Rate rate(400);
 
     while (ros::ok())
     {
