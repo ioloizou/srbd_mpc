@@ -36,16 +36,16 @@ namespace g1_mpc
     u_ = Eigen::VectorXd::Zero(num_controls_);
 
     // MIT
-    Eigen::VectorXd q_diag(num_states_);
-    q_diag << 75e1, 75e0, 125e1,
-          8e2, 2e3, 3e4,
-          8e2, 2e3, 3e4,
-          5e2, 5e3, 5e2,
-          0;
-    Q_weights_ = q_diag.asDiagonal();
+    // Eigen::VectorXd q_diag(num_states_);
+    // q_diag << 75e1, 75e0, 125e1,
+    //       8e2, 2e3, 3e4,
+    //       8e2, 2e3, 3e4,
+    //       5e2, 5e3, 5e2,
+    //       0;
+    // Q_weights_ = q_diag.asDiagonal();
 
-    Eigen::VectorXd r_diag = Eigen::VectorXd::Constant(num_controls_, 0.001);
-    R_weights_ = r_diag.asDiagonal();
+    // Eigen::VectorXd r_diag = Eigen::VectorXd::Constant(num_controls_, 0.001);
+    // R_weights_ = r_diag.asDiagonal();
 
     // // Set up Q weights - Standing double support weights
     // Eigen::VectorXd q_diag(num_states_);
@@ -82,16 +82,16 @@ namespace g1_mpc
     // Eigen::VectorXd r_diag = Eigen::VectorXd::Constant(num_controls_, 0.001);
     // R_weights_ = r_diag.asDiagonal();
 
-    // // Test weights
-    // Eigen::VectorXd q_diag(num_states_);
-    // q_diag << 2e1, 9e1, 5e1, 
-    //           1e5, 1e5, 1e5, 
-    //           5e2, 5e2, 1e2, 
-    //           5e2, 9e2, 9e2, 0;
-    // Q_weights_ = q_diag.asDiagonal();
+    // Test weights
+    Eigen::VectorXd q_diag(num_states_);
+    q_diag << 8e1, 9e1, 5e1, 
+              1e5, 1e5, 1e5, 
+              5e2, 5e2, 1e2, 
+              5e2, 9e2, 9e2, 0;
+    Q_weights_ = q_diag.asDiagonal();
 
-    // Eigen::VectorXd r_diag = Eigen::VectorXd::Constant(num_controls_, 0.001);
-    // R_weights_ = r_diag.asDiagonal();
+    Eigen::VectorXd r_diag = Eigen::VectorXd::Constant(num_controls_, 0.001);
+    R_weights_ = r_diag.asDiagonal();
 
     // Initialize all matrices for the solver
     initMatrices();
@@ -353,7 +353,7 @@ namespace g1_mpc
 
   void MPC::calculateHessian()
   {
-    Hessian_ = (Bqp_.transpose() * Q_ * Bqp_ + R_);
+    Hessian_ = 2*(Bqp_.transpose() * Q_ * Bqp_ + R_);
     // Convert to sparse matrix for OSQP
     Hessian_sparse_ = Hessian_.sparseView();
   }
@@ -367,7 +367,7 @@ namespace g1_mpc
     // std::cout << "x_ref_hor_vec_: " << x_ref_hor_vec_ << std::endl;
 
     // Calculate gradient
-    gradient_ = Bqp_.transpose() * Q_ * ((Aqp_ * x0_) - x_ref_hor_vec_);
+    gradient_ = 2*Bqp_.transpose() * Q_ * ((Aqp_ * x0_) - x_ref_hor_vec_);
   }
 
   Eigen::VectorXd MPC::solveQP(){
