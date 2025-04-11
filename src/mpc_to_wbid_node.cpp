@@ -2,6 +2,7 @@
 #include <memory>
 
 #include "mpc.cpp"
+#include "g1_msgs/State.h"
 #include "g1_msgs/SRBD_state.h"
 #include "g1_msgs/ContactPoint.h"
 #include "std_msgs/Header.h"
@@ -30,19 +31,19 @@ public:
     {
         // ROS_INFO("Received SRBD current state message");
         Eigen::VectorXd x0(13);
-        x0[0] = msg->orientation.x;
-        x0[1] = msg->orientation.y;
-        x0[2] = msg->orientation.z;
-        x0[3] = msg->position.x;
-        x0[4] = msg->position.y;
-        x0[5] = msg->position.z;
-        x0[6] = msg->angular_velocity.x;
-        x0[7] = msg->angular_velocity.y;
-        x0[8] = msg->angular_velocity.z;
-        x0[9] = msg->linear_velocity.x;
-        x0[10] = msg->linear_velocity.y;
-        x0[11] = msg->linear_velocity.z;
-        x0[12] = msg->gravity;
+        x0[0] = msg->states_horizon[0].orientation.x;
+        x0[1] = msg->states_horizon[0].orientation.y;
+        x0[2] = msg->states_horizon[0].orientation.z;
+        x0[3] = msg->states_horizon[0].position.x;
+        x0[4] = msg->states_horizon[0].position.y;
+        x0[5] = msg->states_horizon[0].position.z;
+        x0[6] = msg->states_horizon[0].angular_velocity.x;
+        x0[7] = msg->states_horizon[0].angular_velocity.y;
+        x0[8] = msg->states_horizon[0].angular_velocity.z;
+        x0[9] = msg->states_horizon[0].linear_velocity.x;
+        x0[10] = msg->states_horizon[0].linear_velocity.y;
+        x0[11] = msg->states_horizon[0].linear_velocity.z;
+        x0[12] = msg->states_horizon[0].gravity;
         mpc_->setX0(x0);
 
         // Update contact points
@@ -167,20 +168,40 @@ public:
         const Eigen::MatrixXd &x_opt = mpc_->getXOpt();
         const Eigen::MatrixXd &u_opt = mpc_->getUOpt();
 
-        // Set orientation and position from optimized state
-        srbd_state_msg.orientation.x = x_opt(1, 0);
-        srbd_state_msg.orientation.y = x_opt(1, 1);
-        srbd_state_msg.orientation.z = x_opt(1, 2);
-        srbd_state_msg.position.x = x_opt(1, 3);
-        srbd_state_msg.position.y = x_opt(1, 4);
-        srbd_state_msg.position.z = x_opt(1, 5);
-        srbd_state_msg.angular_velocity.x = x_opt(1, 6);
-        srbd_state_msg.angular_velocity.y = x_opt(1, 7);
-        srbd_state_msg.angular_velocity.z = x_opt(1, 8);
-        srbd_state_msg.linear_velocity.x = x_opt(1, 9);
-        srbd_state_msg.linear_velocity.y = x_opt(1, 10);
-        srbd_state_msg.linear_velocity.z = x_opt(1, 11);
-        srbd_state_msg.gravity = x_opt(1, 12);
+        for (int i = 0; i<mpc_->horizon_length_; i++)
+        {
+            g1_msgs::State state_msg;
+            state_msg.trajectory_index = i;
+            state_msg.orientation.x = x_opt(i, 0);
+            state_msg.orientation.y = x_opt(i, 1);
+            state_msg.orientation.z = x_opt(i, 2);
+            state_msg.position.x = x_opt(i, 3);
+            state_msg.position.y = x_opt(i, 4);
+            state_msg.position.z = x_opt(i, 5);
+            state_msg.angular_velocity.x = x_opt(i, 6);
+            state_msg.angular_velocity.y = x_opt(i, 7);
+            state_msg.angular_velocity.z = x_opt(i, 8);
+            state_msg.linear_velocity.x = x_opt(i, 9);
+            state_msg.linear_velocity.y = x_opt(i, 10);
+            state_msg.linear_velocity.z = x_opt(i, 11);
+            state_msg.gravity = x_opt(i, 12);
+            
+            srbd_state_msg.states_horizon.push_back(state_msg);
+        }
+        // // Set orientation and position from optimized state
+        // srbd_state_msg.orientation.x = x_opt(1, 0);
+        // srbd_state_msg.orientation.y = x_opt(1, 1);
+        // srbd_state_msg.orientation.z = x_opt(1, 2);
+        // srbd_state_msg.position.x = x_opt(1, 3);
+        // srbd_state_msg.position.y = x_opt(1, 4);
+        // srbd_state_msg.position.z = x_opt(1, 5);
+        // srbd_state_msg.angular_velocity.x = x_opt(1, 6);
+        // srbd_state_msg.angular_velocity.y = x_opt(1, 7);
+        // srbd_state_msg.angular_velocity.z = x_opt(1, 8);
+        // srbd_state_msg.linear_velocity.x = x_opt(1, 9);
+        // srbd_state_msg.linear_velocity.y = x_opt(1, 10);
+        // srbd_state_msg.linear_velocity.z = x_opt(1, 11);
+        // srbd_state_msg.gravity = x_opt(1, 12);
 
         // Set contact forces from optimized controls
         std::vector<std::string> contact_names = {
@@ -274,7 +295,7 @@ public:
         // Pass matrices instead of vectors
         mpc_->updateMPC(contact_horizon_matrix, c_horizon, p_com_horizon_matrix, &x_current, true);
 
-        mpc_solve_time_ = (ros::WallTime::now() - start_time).toSec() * 1000.0; // ms
+        mpc_solve_time_ = (ros::WallTime::now() - start_time).toSec(); // seconds
 
         pal_statistics::RegistrationsRAII registrations;
         REGISTER_VARIABLE("/mpc_statistics", "MPC Solve time", &mpc_solve_time_, &registrations);
