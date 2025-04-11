@@ -293,7 +293,7 @@ public:
         // mpc_->debugPrintMatrixDimensions();
 
         // Pass matrices instead of vectors
-        mpc_->updateMPC(contact_horizon_matrix, c_horizon, p_com_horizon_matrix, &x_current, true);
+        mpc_->updateMPC(contact_horizon_matrix, c_horizon, p_com_horizon_matrix, &x_current, false);
 
         mpc_solve_time_ = (ros::WallTime::now() - start_time).toSec(); // seconds
 
