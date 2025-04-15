@@ -24,7 +24,7 @@ public:
         // Subscribe to simulation time
         sub_sim_time_ = nh_.subscribe("/simulation_time", 1, &MPCNode::callbackSimTime, this);
 
-        // ROS_INFO("MPC node initialized successfully");
+        stance_duration_ = 0.25; // seconds
     }
 
     void callbackSrbdCurrent(const g1_msgs::SRBD_state::ConstPtr &msg)
@@ -46,7 +46,7 @@ public:
         x0[12] = msg->states_horizon[0].gravity;
         mpc_->setX0(x0);
 
-        // Update contact points
+        // Update current contact points and use for whole horizon
         Eigen::MatrixXd c_horizon(mpc_->horizon_length_, msg->contacts.size() * 3);
         for (int i = 0; i < mpc_->horizon_length_; i++)
         {
@@ -71,7 +71,6 @@ public:
     std::vector<std::vector<int>> gaitPlanner(bool is_standing = false)
     {
         static double last_switch_time = 0.0;
-        const double stance_duration = 0.25; // seconds
 
         // Use simulation time if available, otherwise use ROS time
         double current_time = simulation_time_;
@@ -104,7 +103,7 @@ public:
                             0, 0, 1, 1; 
         
         const int gait_phase = std::floor(current_time / mpc_->getDt()); 
-        if (gait_phase >= 9){
+        if (gait_phase >= 10){
             contact_planning << 1, 1, 0, 0,
                                 1, 1, 0, 0,
                                 1, 1, 0, 0,
@@ -158,6 +157,41 @@ public:
         return contact_horizon;
     }
 
+    Eigen::MatrixXd FootstepPlanner(){
+
+        auto current_time = simulation_time_;
+
+        int gait_phase = std::floor(current_time / mpc_->getDt()); 
+        int k = gait_phase % mpc_->horizon_length_;
+
+        
+
+        // To get the current and then modify with raibert
+        Eigen::MatrixXd c_horizon = mpc_->getCHorizon();
+
+        // Need to check when the change happens and the instert raibert heuristic
+        double p_swing_foot_land_des_x = 0.0;
+        double p_swing_foot_land_des_y = 0.0;
+        
+        int i=0;
+
+        RaibertHeuristic(p_swing_foot_land_des_x, p_swing_foot_land_des_y, mpc_->getXOpt(), mpc_->getXRefHor(), i, stance_duration_, k);
+
+        
+        // Update the contact horizon with the new footstep
+        for (int i = 0; i < mpc_->horizon_length_; i++)
+        {
+            for (size_t j = 0; j < 3; j++)
+            {
+                c_horizon(i, j * 3) = msg->contacts[j].position.x;
+                c_horizon(i, j * 3 + 1) = msg->contacts[j].position.y;
+                c_horizon(i, j * 3 + 2) = msg->contacts[j].position.z;
+            }
+        }
+
+        return c_horizon;
+    } 
+
     void publishMPCSolution(std::vector<std::vector<int>> contact_horizon)
     {
         g1_msgs::SRBD_state srbd_state_msg;
@@ -188,20 +222,6 @@ public:
             
             srbd_state_msg.states_horizon.push_back(state_msg);
         }
-        // // Set orientation and position from optimized state
-        // srbd_state_msg.orientation.x = x_opt(1, 0);
-        // srbd_state_msg.orientation.y = x_opt(1, 1);
-        // srbd_state_msg.orientation.z = x_opt(1, 2);
-        // srbd_state_msg.position.x = x_opt(1, 3);
-        // srbd_state_msg.position.y = x_opt(1, 4);
-        // srbd_state_msg.position.z = x_opt(1, 5);
-        // srbd_state_msg.angular_velocity.x = x_opt(1, 6);
-        // srbd_state_msg.angular_velocity.y = x_opt(1, 7);
-        // srbd_state_msg.angular_velocity.z = x_opt(1, 8);
-        // srbd_state_msg.linear_velocity.x = x_opt(1, 9);
-        // srbd_state_msg.linear_velocity.y = x_opt(1, 10);
-        // srbd_state_msg.linear_velocity.z = x_opt(1, 11);
-        // srbd_state_msg.gravity = x_opt(1, 12);
 
         // Set contact forces from optimized controls
         std::vector<std::string> contact_names = {
@@ -306,6 +326,27 @@ public:
         publishMPCSolution(contact_horizon);
     }
 
+    void RaibertHeuristic(double p_swing_foot_land_des_x, double p_swing_foot_land_des_y, Eigen::MatrixXd const &x_opt, Eigen::MatrixXd const &x_ref_hor, int const i, double const stance_duration, double k){
+        Eigen::Vector3d p_com = x_opt.row(i).segment(3, 3);
+        double p_com_x = p_com(0); 
+        double p_com_y = p_com(1);
+        
+        Eigen::Vector3d p_dot_com = x_opt.row(i).segment(9, 3);
+        double p_dot_com_x = p_dot_com(0);
+        double p_dot_com_y = p_dot_com(1);
+        
+        Eigen::Vector3d p_dot_com_des = x_ref_hor.row(i).segment(9, 3);
+        double p_dot_com_des_x = p_dot_com_des(0);
+        double p_dot_com_des_y = p_dot_com_des(1); 
+        
+        k = stance_duration * 0.5;
+
+        p_swing_foot_land_des_x = p_com_x + p_dot_com_x * stance_duration * 0.5 + k*(p_dot_com_x - p_dot_com_des_x);
+        p_swing_foot_land_des_y = p_com_y + p_dot_com_y * stance_duration * 0.5 + k*(p_dot_com_y - p_dot_com_des_y);
+
+        // Centrifugal term can be added later
+    }
+
     // Debug function to print all MPC-related variables
     void debugMPCVariables(Eigen::MatrixXd const &contact_horizon_matrix,
                            Eigen::MatrixXd const &c_horizon_matrix,
@@ -346,6 +387,7 @@ private:
     bool received_state_;    // Flag to indicate state received
     double simulation_time_; // Store simulation time
     double mpc_solve_time_;  // For statistics
+    double stance_duration_; // Duration of stance phase
 };
 
 int main(int argc, char **argv)
