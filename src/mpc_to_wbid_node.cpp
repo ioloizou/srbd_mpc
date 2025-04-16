@@ -68,7 +68,7 @@ public:
         simulation_time_ = msg.clock.toSec();
     }
 
-    std::vector<std::vector<int>> gaitPlanner(bool is_standing = false)
+    std::vector<std::vector<int>> gaitPlanner(bool is_standing = false, Eigen::MatrixXd &c_horizon)
     {
         static double last_switch_time = 0.0;
 
@@ -127,7 +127,7 @@ public:
         }
         
         const int k = gait_phase % mpc_->horizon_length_;
-        // ROS_INFO_STREAM("Gait phase: " << gait_phase << ", k: " << k);
+        ROS_INFO_STREAM("Gait phase: " << gait_phase << ", k: " << k);
         
 
         // Create contact horizon based on current phase
@@ -146,13 +146,28 @@ public:
                 contact_horizon_eigen(i, j) = contact_horizon[i][j];
             }
         }
-        // ROS_INFO_STREAM("Contact horizon: \n" << contact_horizon_eigen);
+        ROS_INFO_STREAM("Contact horizon: \n" << contact_horizon_eigen);
         
 
         if (is_standing)
         {
             std::fill(contact_horizon.begin(), contact_horizon.end(), std::vector<int>{1, 1, 1, 1});
         }
+
+        /****************************
+         * Footstep related         *
+         ****************************/
+        // To get the current and then modify with raibert
+        c_horizon = mpc_->getCHorizon();
+
+        // Need to check when the change happens and the instert raibert heuristic
+        double p_swing_foot_land_des_x = 0.0;
+        double p_swing_foot_land_des_y = 0.0;
+
+        int remaining_stance_steps = k % 5; 
+
+        
+
 
         return contact_horizon;
     }
@@ -174,20 +189,37 @@ public:
         double p_swing_foot_land_des_y = 0.0;
         
         int i=0;
+        int remaining_stance_steps = k % 5; 
 
-        RaibertHeuristic(p_swing_foot_land_des_x, p_swing_foot_land_des_y, mpc_->getXOpt(), mpc_->getXRefHor(), i, stance_duration_, k);
-
-        
-        // Update the contact horizon with the new footstep
-        for (int i = 0; i < mpc_->horizon_length_; i++)
-        {
-            for (size_t j = 0; j < 3; j++)
-            {
-                c_horizon(i, j * 3) = msg->contacts[j].position.x;
-                c_horizon(i, j * 3 + 1) = msg->contacts[j].position.y;
-                c_horizon(i, j * 3 + 2) = msg->contacts[j].position.z;
+        // When i=0 is the current k
+        if (k == 0){
+            RaibertHeuristic(p_swing_foot_land_des_x, p_swing_foot_land_des_y, mpc_->getXOpt(), mpc_->getXRefHor(), i, stance_duration_, k);  
+            for (int i = 0; i < 5; i++){
+                c_horizon(i, 0) = p_swing_foot_land_des_x;
+                c_horizon(i, 1) = p_swing_foot_land_des_y;
             }
         }
+
+
+        /*
+        Get the current footstep position.
+        do
+         Check if have swing. (swing when k == 0)
+         If yes, then modify the footstep position.
+        while (i < mpc_->horizon_length_)
+        */
+
+
+        // Update the contact horizon with the new footstep
+        // for (int i = 0; i < mpc_->horizon_length_; i++)
+        // {
+        //     for (size_t j = 0; j < 3; j++)
+        //     {
+        //         c_horizon(i, j * 3) = msg->contacts[j].position.x;
+        //         c_horizon(i, j * 3 + 1) = msg->contacts[j].position.y;
+        //         c_horizon(i, j * 3 + 2) = msg->contacts[j].position.z;
+        //     }
+        // }
 
         return c_horizon;
     } 
