@@ -68,7 +68,7 @@ public:
         simulation_time_ = msg.clock.toSec();
     }
 
-    std::vector<std::vector<int>> gaitPlanner(bool is_standing = false, Eigen::MatrixXd &c_horizon)
+    std::vector<std::vector<int>> gaitPlanner(Eigen::MatrixXd c_horizon, bool is_standing = false)
     {
         static double last_switch_time = 0.0;
 
@@ -157,14 +157,18 @@ public:
         /****************************
          * Footstep related         *
          ****************************/
-        // To get the current and then modify with raibert
-        c_horizon = mpc_->getCHorizon();
+        
 
         // Need to check when the change happens and the instert raibert heuristic
         double p_swing_foot_land_des_x = 0.0;
         double p_swing_foot_land_des_y = 0.0;
 
-        int remaining_stance_steps = k % 5; 
+        int remaining_stance_nodes = k % 5;
+        
+        for (int i=0; i < mpc_->horizon_length_; i++){
+            
+        }
+        
 
         
 
@@ -289,7 +293,7 @@ public:
         // Get contact horizon (which feet are in contact)
 
         // If using gait patterns:
-        std::vector<std::vector<int>> contact_horizon = gaitPlanner();
+        std::vector<std::vector<int>> contact_horizon = gaitPlanner(mpc_->getCHorizon());
 
         // Get current time
         double time = simulation_time_;

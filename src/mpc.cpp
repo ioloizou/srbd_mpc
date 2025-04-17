@@ -21,10 +21,10 @@ namespace g1_mpc
     // Set number of controls (3 forces per contact)
     num_controls_ = 3 * num_contacts_;
 
-    // // Initialize the inertia matrix NEED TO CHECK WHICH IS CORRECT
-    inertia_body_ << 6.20564e-2, 0., 0.,
-        0., 5.05015e-2, 0.,
-        0., 0., 0.032353e-2;
+    // Initialize the inertia matrix NEED TO CHECK WHICH IS CORRECT
+    inertia_body_ << 8.20564e-2, 0., 0.,
+        0., 8.05015e-2, 0.,
+        0., 0., 0.32353e-2;
  
     // inertia_body_ << 3.20564e-1, 4.35027e-06, 0.425526e-1,
     // 4.35027e-06, 3.05015e-1, -0.00065082e-1,
@@ -89,7 +89,7 @@ namespace g1_mpc
     // Test weights
     Eigen::VectorXd q_diag(num_states_);
     q_diag << 8e1, 9e1, 5e1, 
-              1e5, 1e5, 1e5, 
+              1e5, 1e6, 1e5, 
               5e2, 5e2, 1e2, 
               5e2, 9e2, 9e2, 0;
     Q_weights_ = q_diag.asDiagonal();
