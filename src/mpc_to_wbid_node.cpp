@@ -127,7 +127,7 @@ public:
         }
         
         const int k = gait_phase % mpc_->horizon_length_;
-        ROS_INFO_STREAM("Gait phase: " << gait_phase << ", k: " << k);
+        // ROS_INFO_STREAM("Gait phase: " << gait_phase << ", k: " << k);
         
 
         // Create contact horizon based on current phase
@@ -146,7 +146,7 @@ public:
                 contact_horizon_eigen(i, j) = contact_horizon[i][j];
             }
         }
-        ROS_INFO_STREAM("Contact horizon: \n" << contact_horizon_eigen);
+        // ROS_INFO_STREAM("Contact horizon: \n" << contact_horizon_eigen);
         
 
         if (is_standing)
@@ -165,68 +165,106 @@ public:
 
         int remaining_stance_nodes = k % 5;
         
-        for (int i=0; i < mpc_->horizon_length_; i++){
-            
+        // This are offsets for x lower= -0.05 upper= 0.12
+
+        // Because raibert heuristic is only for the com
+        double const FOOT_OFFSET_Y_COM = 0.118508;
+        double const FOOT_LOWER_X_OFFSET = 0.0293;
+        double const FOOT_UPPER_X_OFFSET = 0.1406;
+
+        // Check the sum of all the in row zero colluns if it is 2 otherwise means it is in double stance
+        int sum = 0;
+        for (int j = 0; j < mpc_->getNumContacts(); ++j) {
+            sum += contact_horizon[0][j];
         }
-        
 
-        
+        if (sum == 2) {
+            // ROS_INFO_STREAM("Single stance detected, adjusting footstep planning");
+            /*
+            0, 5 - remaining_stance_nodes : Current footstep position
+            5 - remaining_stance_nodes, 10 - remaining_stance_nodes : New footstep position
+            10 - remaining_stance_nodes, 10 : New footstep position
+            */
+            
+            // For the (5 - remaining_stance_nodes) first nodes we keep current footsteps
+            
+            RaibertHeuristic(p_swing_foot_land_des_x, 
+                             p_swing_foot_land_des_y, 
+                             mpc_->getXOpt(), 
+                             mpc_->getXRefHor(), 
+                             0, 
+                             stance_duration_);
 
+            for (int i = 5 - remaining_stance_nodes; i < 5; i++)
+            {
+                if (contact_horizon[i][0] == 1)
+                {
+                    // Left foot in contact
+                    // Lower left foot
+                    c_horizon(i,6) = p_swing_foot_land_des_x - FOOT_LOWER_X_OFFSET;
+                    c_horizon(i,7) = p_swing_foot_land_des_y + FOOT_OFFSET_Y_COM;
+                    
+                    // Upper left foot
+                    c_horizon(i,9) = p_swing_foot_land_des_x + FOOT_UPPER_X_OFFSET;
+                    c_horizon(i,10) = p_swing_foot_land_des_y + FOOT_OFFSET_Y_COM;
+                }
+                else{
+                    // Right foot in contact
+                    c_horizon(i,0) = p_swing_foot_land_des_x - FOOT_LOWER_X_OFFSET;
+                    c_horizon(i,1) = p_swing_foot_land_des_y - FOOT_OFFSET_Y_COM;
+
+                    // Upper right foot
+                    c_horizon(i,3) = p_swing_foot_land_des_x + FOOT_UPPER_X_OFFSET;
+                    c_horizon(i,4) = p_swing_foot_land_des_y - FOOT_OFFSET_Y_COM;
+                }    
+            }
+            
+            double p_swing_foot_land_des_x = 0.0;
+            double p_swing_foot_land_des_y = 0.0;
+
+            RaibertHeuristic(p_swing_foot_land_des_x, 
+                p_swing_foot_land_des_y, 
+                mpc_->getXOpt(), 
+                mpc_->getXRefHor(), 
+                0, 
+                stance_duration_);
+
+            // Now we have a change of switch again
+            for (int i = 10 - remaining_stance_nodes; i < 10; i++){
+                if (contact_horizon[i][0] == 1)
+                {
+                    // Left foot in contact
+                    // Lower left foot
+                    c_horizon(i,6) = p_swing_foot_land_des_x - FOOT_LOWER_X_OFFSET;
+                    c_horizon(i,7) = p_swing_foot_land_des_y + FOOT_OFFSET_Y_COM;
+                    
+                    // Upper left foot
+                    c_horizon(i,9) = p_swing_foot_land_des_x + FOOT_UPPER_X_OFFSET;
+                    c_horizon(i,10) = p_swing_foot_land_des_y + FOOT_OFFSET_Y_COM;
+                }
+                else{
+                    // Right foot in contact
+                    c_horizon(i,0) = p_swing_foot_land_des_x - FOOT_LOWER_X_OFFSET;
+                    c_horizon(i,1) = p_swing_foot_land_des_y - FOOT_OFFSET_Y_COM;
+
+                    // Upper right foot
+                    c_horizon(i,3) = p_swing_foot_land_des_x + FOOT_UPPER_X_OFFSET;
+                    c_horizon(i,4) = p_swing_foot_land_des_y - FOOT_OFFSET_Y_COM;
+                }  
+            }
+                        
+        }
+        else{
+            // ROS_INFO_STREAM("Double stance detected in raibert heuristic, no need to adjust footstep planning");    
+        }
+
+        mpc_->setCHorizon(c_horizon);
+        /****************************
+         * End of footstep related  *
+         ****************************/
 
         return contact_horizon;
     }
-
-    Eigen::MatrixXd FootstepPlanner(){
-
-        auto current_time = simulation_time_;
-
-        int gait_phase = std::floor(current_time / mpc_->getDt()); 
-        int k = gait_phase % mpc_->horizon_length_;
-
-        
-
-        // To get the current and then modify with raibert
-        Eigen::MatrixXd c_horizon = mpc_->getCHorizon();
-
-        // Need to check when the change happens and the instert raibert heuristic
-        double p_swing_foot_land_des_x = 0.0;
-        double p_swing_foot_land_des_y = 0.0;
-        
-        int i=0;
-        int remaining_stance_steps = k % 5; 
-
-        // When i=0 is the current k
-        if (k == 0){
-            RaibertHeuristic(p_swing_foot_land_des_x, p_swing_foot_land_des_y, mpc_->getXOpt(), mpc_->getXRefHor(), i, stance_duration_, k);  
-            for (int i = 0; i < 5; i++){
-                c_horizon(i, 0) = p_swing_foot_land_des_x;
-                c_horizon(i, 1) = p_swing_foot_land_des_y;
-            }
-        }
-
-
-        /*
-        Get the current footstep position.
-        do
-         Check if have swing. (swing when k == 0)
-         If yes, then modify the footstep position.
-        while (i < mpc_->horizon_length_)
-        */
-
-
-        // Update the contact horizon with the new footstep
-        // for (int i = 0; i < mpc_->horizon_length_; i++)
-        // {
-        //     for (size_t j = 0; j < 3; j++)
-        //     {
-        //         c_horizon(i, j * 3) = msg->contacts[j].position.x;
-        //         c_horizon(i, j * 3 + 1) = msg->contacts[j].position.y;
-        //         c_horizon(i, j * 3 + 2) = msg->contacts[j].position.z;
-        //     }
-        // }
-
-        return c_horizon;
-    } 
 
     void publishMPCSolution(std::vector<std::vector<int>> contact_horizon)
     {
@@ -265,7 +303,8 @@ public:
             "left_foot_line_contact_upper",
             "right_foot_line_contact_lower",
             "right_foot_line_contact_upper"};
-
+        
+        Eigen::MatrixXd c_horizon = mpc_->getCHorizon();
         for (int i = 0; i < 4; i++)
         {
             g1_msgs::ContactPoint contact_point_msg;
@@ -274,6 +313,9 @@ public:
             contact_point_msg.force.y = u_opt(0, i * 3 + 1);
             contact_point_msg.force.z = u_opt(0, i * 3 + 2);
             contact_point_msg.active = contact_horizon[0][i]; // Use first step of horizon
+            contact_point_msg.position.x = c_horizon(0, i * 3);
+            contact_point_msg.position.y = c_horizon(0, i * 3 + 1);
+            contact_point_msg.position.z = c_horizon(0, i * 3 + 2);
             srbd_state_msg.contacts.push_back(contact_point_msg);
         }
 
@@ -362,7 +404,7 @@ public:
         publishMPCSolution(contact_horizon);
     }
 
-    void RaibertHeuristic(double p_swing_foot_land_des_x, double p_swing_foot_land_des_y, Eigen::MatrixXd const &x_opt, Eigen::MatrixXd const &x_ref_hor, int const i, double const stance_duration, double k){
+    void RaibertHeuristic(double p_swing_foot_land_des_x, double p_swing_foot_land_des_y, Eigen::MatrixXd const &x_opt, Eigen::MatrixXd const &x_ref_hor, int const i, double const stance_duration){
         Eigen::Vector3d p_com = x_opt.row(i).segment(3, 3);
         double p_com_x = p_com(0); 
         double p_com_y = p_com(1);
@@ -375,10 +417,11 @@ public:
         double p_dot_com_des_x = p_dot_com_des(0);
         double p_dot_com_des_y = p_dot_com_des(1); 
         
-        k = stance_duration * 0.5;
+        double k_vel_gain = stance_duration * 0.5;
 
-        p_swing_foot_land_des_x = p_com_x + p_dot_com_x * stance_duration * 0.5 + k*(p_dot_com_x - p_dot_com_des_x);
-        p_swing_foot_land_des_y = p_com_y + p_dot_com_y * stance_duration * 0.5 + k*(p_dot_com_y - p_dot_com_des_y);
+        // TODO add the offset from the CoM to the foot
+        p_swing_foot_land_des_x = p_com_x + p_dot_com_x * stance_duration * 0.5 + k_vel_gain * (p_dot_com_x - p_dot_com_des_x);
+        p_swing_foot_land_des_y = p_com_y + p_dot_com_y * stance_duration * 0.5 + k_vel_gain * (p_dot_com_y - p_dot_com_des_y);
 
         // Centrifugal term can be added later
     }
