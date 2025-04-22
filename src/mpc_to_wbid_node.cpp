@@ -163,7 +163,7 @@ public:
         double p_swing_foot_land_des_x = 0.0;
         double p_swing_foot_land_des_y = 0.0;
 
-        int remaining_stance_nodes = k % 5;
+        int sub_phase = k % 5;
         
         // This are offsets for x lower= -0.05 upper= 0.12
 
@@ -181,41 +181,40 @@ public:
         if (sum == 2) {
             // ROS_INFO_STREAM("Single stance detected, adjusting footstep planning");
             /*
-            0, 5 - remaining_stance_nodes : Current footstep position
-            5 - remaining_stance_nodes, 10 - remaining_stance_nodes : New footstep position
-            10 - remaining_stance_nodes, 10 : New footstep position
+            0, 5 - sub_phase : Current footstep position
+            5 - sub_phase, 10 - sub_phase : New footstep position
+            10 - sub_phase, 10 : New footstep position
             */
             
-            // For the (5 - remaining_stance_nodes) first nodes we keep current footsteps
+            // For the (5 - sub_phase) first nodes we keep current footsteps
             
             RaibertHeuristic(p_swing_foot_land_des_x, 
                              p_swing_foot_land_des_y, 
                              mpc_->getXOpt(), 
                              mpc_->getXRefHor(), 
-                             0, 
+                             5 - sub_phase, 
                              stance_duration_);
 
-            for (int i = 5 - remaining_stance_nodes; i < 5; i++)
+            for (int i = 5 - sub_phase; i < 10 - sub_phase; i++)
             {
-                if (contact_horizon[i][0] == 1)
+                if (contact_horizon[i][0] == 0)
                 {
-                    // Left foot in contact
                     // Lower left foot
-                    c_horizon(i,6) = p_swing_foot_land_des_x - FOOT_LOWER_X_OFFSET;
-                    c_horizon(i,7) = p_swing_foot_land_des_y + FOOT_OFFSET_Y_COM;
+                    c_horizon(i,0) = p_swing_foot_land_des_x - FOOT_LOWER_X_OFFSET;
+                    c_horizon(i,1) = p_swing_foot_land_des_y + FOOT_OFFSET_Y_COM;
                     
                     // Upper left foot
-                    c_horizon(i,9) = p_swing_foot_land_des_x + FOOT_UPPER_X_OFFSET;
-                    c_horizon(i,10) = p_swing_foot_land_des_y + FOOT_OFFSET_Y_COM;
+                    c_horizon(i,3) = p_swing_foot_land_des_x + FOOT_UPPER_X_OFFSET;
+                    c_horizon(i,4) = p_swing_foot_land_des_y + FOOT_OFFSET_Y_COM;
                 }
                 else{
-                    // Right foot in contact
-                    c_horizon(i,0) = p_swing_foot_land_des_x - FOOT_LOWER_X_OFFSET;
-                    c_horizon(i,1) = p_swing_foot_land_des_y - FOOT_OFFSET_Y_COM;
-
+                    // Lower right foot
+                    c_horizon(i,6) = p_swing_foot_land_des_x - FOOT_LOWER_X_OFFSET;
+                    c_horizon(i,7) = p_swing_foot_land_des_y - FOOT_OFFSET_Y_COM;
+                    
                     // Upper right foot
-                    c_horizon(i,3) = p_swing_foot_land_des_x + FOOT_UPPER_X_OFFSET;
-                    c_horizon(i,4) = p_swing_foot_land_des_y - FOOT_OFFSET_Y_COM;
+                    c_horizon(i,9) = p_swing_foot_land_des_x + FOOT_UPPER_X_OFFSET;
+                    c_horizon(i,10) = p_swing_foot_land_des_y - FOOT_OFFSET_Y_COM;
                 }    
             }
             
@@ -226,33 +225,33 @@ public:
                 p_swing_foot_land_des_y, 
                 mpc_->getXOpt(), 
                 mpc_->getXRefHor(), 
-                0, 
+                10 - sub_phase, 
                 stance_duration_);
 
             // Now we have a change of switch again
-            for (int i = 10 - remaining_stance_nodes; i < 10; i++){
-                if (contact_horizon[i][0] == 1)
+            for (int i = 10 - sub_phase; i < 10; i++){
+                ROS_INFO_STREAM("Hi: " << sub_phase);
+                if (contact_horizon[i][0] == 0)
                 {
-                    // Left foot in contact
                     // Lower left foot
-                    c_horizon(i,6) = p_swing_foot_land_des_x - FOOT_LOWER_X_OFFSET;
-                    c_horizon(i,7) = p_swing_foot_land_des_y + FOOT_OFFSET_Y_COM;
+                    c_horizon(i,0) = p_swing_foot_land_des_x - FOOT_LOWER_X_OFFSET;
+                    c_horizon(i,1) = p_swing_foot_land_des_y + FOOT_OFFSET_Y_COM;
                     
                     // Upper left foot
-                    c_horizon(i,9) = p_swing_foot_land_des_x + FOOT_UPPER_X_OFFSET;
-                    c_horizon(i,10) = p_swing_foot_land_des_y + FOOT_OFFSET_Y_COM;
+                    c_horizon(i,3) = p_swing_foot_land_des_x + FOOT_UPPER_X_OFFSET;
+                    c_horizon(i,4) = p_swing_foot_land_des_y + FOOT_OFFSET_Y_COM;
                 }
                 else{
-                    // Right foot in contact
-                    c_horizon(i,0) = p_swing_foot_land_des_x - FOOT_LOWER_X_OFFSET;
-                    c_horizon(i,1) = p_swing_foot_land_des_y - FOOT_OFFSET_Y_COM;
-
+                    // Lower right foot
+                    c_horizon(i,6) = p_swing_foot_land_des_x - FOOT_LOWER_X_OFFSET;
+                    c_horizon(i,7) = p_swing_foot_land_des_y - FOOT_OFFSET_Y_COM;
+                    
                     // Upper right foot
-                    c_horizon(i,3) = p_swing_foot_land_des_x + FOOT_UPPER_X_OFFSET;
-                    c_horizon(i,4) = p_swing_foot_land_des_y - FOOT_OFFSET_Y_COM;
+                    c_horizon(i,9) = p_swing_foot_land_des_x + FOOT_UPPER_X_OFFSET;
+                    c_horizon(i,10) = p_swing_foot_land_des_y - FOOT_OFFSET_Y_COM;
                 }  
             }
-                        
+            
         }
         else{
             // ROS_INFO_STREAM("Double stance detected in raibert heuristic, no need to adjust footstep planning");    
@@ -399,7 +398,7 @@ public:
         REGISTER_VARIABLE("/mpc_statistics", "MPC Solve time", &mpc_solve_time_, &registrations);
         PUBLISH_STATISTICS("/mpc_statistics");
 
-        // debugMPCVariables(contact_horizon_matrix, c_horizon, p_com_horizon_matrix);
+        debugMPCVariables(contact_horizon_matrix, c_horizon, p_com_horizon_matrix);
         // Publish solution
         publishMPCSolution(contact_horizon);
     }
@@ -431,29 +430,29 @@ public:
                            Eigen::MatrixXd const &c_horizon_matrix,
                            Eigen::MatrixXd const &p_com_horizon_matrix)
     {
-        ROS_INFO_STREAM("MPC x0: \n"
-                        << mpc_->getX0());
-        ROS_INFO_STREAM("MPC x_ref_hor: \n"
-                        << mpc_->getXRefHor());
-        ROS_INFO_STREAM("c_horizon_matrix: \n"
-                        << c_horizon_matrix);
+        // ROS_INFO_STREAM("MPC x0: \n"
+        //                 << mpc_->getX0());
+        // ROS_INFO_STREAM("MPC x_ref_hor: \n"
+        //                 << mpc_->getXRefHor());
+        // ROS_INFO_STREAM("c_horizon_matrix: \n"
+        //                 << c_horizon_matrix);
         ROS_INFO_STREAM("MPC c_horizon: \n"
                         << mpc_->getCHorizon());
-        ROS_INFO_STREAM("p_com_horizon_matrix: \n"
-                        << p_com_horizon_matrix);
-        ROS_INFO_STREAM("MPC p_com_horizon: \n"
-                        << mpc_->getPComHorizon());
-        ROS_INFO_STREAM("contact_horizon_matrix: \n"
-                        << contact_horizon_matrix);
+        // ROS_INFO_STREAM("p_com_horizon_matrix: \n"
+        //                 << p_com_horizon_matrix);
+        // ROS_INFO_STREAM("MPC p_com_horizon: \n"
+        //                 << mpc_->getPComHorizon());
+        // ROS_INFO_STREAM("contact_horizon_matrix: \n"
+        //                 << contact_horizon_matrix);
         ROS_INFO_STREAM("MPC contact_horizon: \n"
                         << mpc_->getContactHorizon());
-        ROS_INFO_STREAM("MPC x_opt: \n"
-                        << mpc_->getXOpt());
-        ROS_INFO_STREAM("MPC u_opt: \n"
-                        << mpc_->getUOpt());
-        ROS_INFO_STREAM("MPC contact forces (first step): \n"
-                        << mpc_->getUOpt().row(0));
-        ROS_INFO_STREAM("MPC solve time: " << mpc_solve_time_ << " ms");
+        // ROS_INFO_STREAM("MPC x_opt: \n"
+        //                 << mpc_->getXOpt());
+        // ROS_INFO_STREAM("MPC u_opt: \n"
+        //                 << mpc_->getUOpt());
+        // ROS_INFO_STREAM("MPC contact forces (first step): \n"
+        //                 << mpc_->getUOpt().row(0));
+        // ROS_INFO_STREAM("MPC solve time: " << mpc_solve_time_ << " ms");
     }
 
 private:
