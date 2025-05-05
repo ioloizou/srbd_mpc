@@ -68,7 +68,7 @@ public:
         simulation_time_ = msg.clock.toSec();
     }
 
-    std::vector<std::vector<int>> gaitPlanner(Eigen::MatrixXd c_horizon, bool is_standing = false)
+    std::vector<std::vector<int>> gaitPlanner(Eigen::MatrixXd c_horizon, double &landing_position_x_, double &landing_position_y_, bool is_standing = false)
     {
         static double last_switch_time = 0.0;
 
@@ -206,6 +206,10 @@ public:
                     // Upper left foot
                     c_horizon(i,3) = p_swing_foot_land_des_x + FOOT_UPPER_X_OFFSET;
                     c_horizon(i,4) = p_swing_foot_land_des_y + FOOT_OFFSET_Y_COM;
+                    
+                    // Placeholder for publishing
+                    landing_position_x_ = p_swing_foot_land_des_x;
+                    landing_position_y_ = p_swing_foot_land_des_y;
                 }
                 else{
                     // Lower right foot
@@ -215,9 +219,12 @@ public:
                     // Upper right foot
                     c_horizon(i,9) = p_swing_foot_land_des_x + FOOT_UPPER_X_OFFSET;
                     c_horizon(i,10) = p_swing_foot_land_des_y - FOOT_OFFSET_Y_COM;
+
+                    // Placeholder for publishing
+                    landing_position_x_ = p_swing_foot_land_des_x;
+                    landing_position_y_ = p_swing_foot_land_des_y;
                 }    
-            }
-            
+            }             
             double p_swing_foot_land_des_x = 0.0;
             double p_swing_foot_land_des_y = 0.0;
 
@@ -230,7 +237,6 @@ public:
 
             // Now we have a change of switch again
             for (int i = 10 - sub_phase; i < 10; i++){
-                ROS_INFO_STREAM("Hi: " << sub_phase);
                 if (contact_horizon[i][0] == 0)
                 {
                     // Lower left foot
@@ -265,7 +271,7 @@ public:
         return contact_horizon;
     }
 
-    void publishMPCSolution(std::vector<std::vector<int>> contact_horizon)
+    void publishMPCSolution(std::vector<std::vector<int>> contact_horizon, double &landing_position_x_, double &landing_position_y_)
     {
         g1_msgs::SRBD_state srbd_state_msg;
         srbd_state_msg.header.stamp = ros::Time(simulation_time_);
@@ -318,6 +324,11 @@ public:
             srbd_state_msg.contacts.push_back(contact_point_msg);
         }
 
+        srbd_state_msg.landing_position.x = landing_position_x_; 
+        srbd_state_msg.landing_position.y = landing_position_y_;
+        // Not needed z since it will be calculated from the trajectory 
+        srbd_state_msg.landing_position.z = 0.0;
+
         // Publish the message
         pub_mpc_solution_.publish(srbd_state_msg);
     }
@@ -333,8 +344,10 @@ public:
         // ROS_INFO("Updating MPC...");
         // Get contact horizon (which feet are in contact)
 
-        // If using gait patterns:
-        std::vector<std::vector<int>> contact_horizon = gaitPlanner(mpc_->getCHorizon());
+        double landing_position_x_ = 0.0;
+        double landing_position_y_ = 0.0;
+        
+        std::vector<std::vector<int>> contact_horizon = gaitPlanner(mpc_->getCHorizon(), landing_position_x_, landing_position_y_);
 
         // Get current time
         double time = simulation_time_;
@@ -398,12 +411,12 @@ public:
         REGISTER_VARIABLE("/mpc_statistics", "MPC Solve time", &mpc_solve_time_, &registrations);
         PUBLISH_STATISTICS("/mpc_statistics");
 
-        debugMPCVariables(contact_horizon_matrix, c_horizon, p_com_horizon_matrix);
+        // debugMPCVariables(contact_horizon_matrix, c_horizon, p_com_horizon_matrix);
         // Publish solution
-        publishMPCSolution(contact_horizon);
+        publishMPCSolution(contact_horizon, landing_position_x_, landing_position_y_);
     }
 
-    void RaibertHeuristic(double p_swing_foot_land_des_x, double p_swing_foot_land_des_y, Eigen::MatrixXd const &x_opt, Eigen::MatrixXd const &x_ref_hor, int const i, double const stance_duration){
+    void RaibertHeuristic(double &p_swing_foot_land_des_x, double &p_swing_foot_land_des_y, Eigen::MatrixXd const &x_opt, Eigen::MatrixXd const &x_ref_hor, int const i, double const stance_duration){
         Eigen::Vector3d p_com = x_opt.row(i).segment(3, 3);
         double p_com_x = p_com(0); 
         double p_com_y = p_com(1);
