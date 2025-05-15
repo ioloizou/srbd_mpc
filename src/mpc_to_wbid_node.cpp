@@ -198,6 +198,7 @@ public:
             for (int i = 5 - sub_phase; i < 10 - sub_phase; i++)
             {
                 if (contact_horizon[i][0] == 0)
+                // If left foot is in swing
                 {
                     // Lower left foot
                     c_horizon(i,0) = p_swing_foot_land_des_x - FOOT_LOWER_X_OFFSET;
@@ -238,6 +239,7 @@ public:
             // Now we have a change of switch again
             for (int i = 10 - sub_phase; i < 10; i++){
                 if (contact_horizon[i][0] == 0)
+                // if left foot is in swing
                 {
                     // Lower left foot
                     c_horizon(i,0) = p_swing_foot_land_des_x - FOOT_LOWER_X_OFFSET;
@@ -344,35 +346,69 @@ public:
         // ROS_INFO("Updating MPC...");
         // Get contact horizon (which feet are in contact)
 
-        double landing_position_x_ = 0.0;
-        double landing_position_y_ = 0.0;
         
-        std::vector<std::vector<int>> contact_horizon = gaitPlanner(mpc_->getCHorizon(), landing_position_x_, landing_position_y_);
-
         // Get current time
         double time = simulation_time_;
-
-        // Update reference trajectory
+        
+        bool is_walking_forward = true;
+        
         Eigen::MatrixXd x_ref_hor = mpc_->getXRefHor();
-        x_ref_hor.block(0, 3, 1, 3) << 5.26790425e-02, 7.44339342e-05, 5.97983255e-01;
+        
+        // Commanded Velocity (roll, pitch, yaw, x, y, z)
+        Eigen::VectorXd v_cmd(6);
+        v_cmd << 0.0, 0.0, 0.0, 1.2, 0.0, 0.0;
 
-        double radius = 0.05;
-        double x_const = x_ref_hor(0, 3);
-        double y_center = x_ref_hor(0, 4);
-        double z_center = x_ref_hor(0, 5);
-
-        double speed = 0.5;
-        for (int i = 0; i < mpc_->horizon_length_; i++)
+        // Reference trajectory is a simple euler integration of velocity command
+        if (is_walking_forward)
         {
-            x_ref_hor(i, 3) = x_const;
-            x_ref_hor(i, 4) = y_center;
-            // - radius/16 * std::cos(speed*M_PI*time);
-            x_ref_hor(i, 5) = z_center;
-            // - radius/2 * std::cos(speed*5*M_PI*time);
-            x_ref_hor(i, 12) = mpc_->g_;
+            for (int i = 0; i < mpc_->horizon_length_; i++)
+            {
+                x_ref_hor(i, 4) = 7.44339342e-05;
+                x_ref_hor(i, 5) = 5.97983255e-01;
+                // The velocity is in world frame 
+                // X velocity integration
+                x_ref_hor(i, 3) = mpc_->getX0()(3) + v_cmd(3) * i * mpc_->getDt();
+                
+                // Y velocity integration
+                // x_ref_hor(i, 4) = mpc_->getX0()(4) + v_cmd(4) * i * mpc_->getDt();
+
+                // Set the x, y reference velocity
+                x_ref_hor(i, 9) = v_cmd(3);
+                // x_ref_hor(i, 10) = v_cmd(4);
+
+                // Angular velocity integration (only yaw)
+                // In world frame
+                x_ref_hor(i, 2) = mpc_->getX0()(2) + v_cmd(2) * i * mpc_->getDt();
+                
+                // Set the angular velocity reference
+                x_ref_hor(i, 8) = v_cmd(2) ;
+
+                x_ref_hor(i, 12) = mpc_->g_;
+            }
+        }
+
+        else{
+            // Update reference trajectory
+            x_ref_hor.block(0, 3, 1, 3) << 5.26790425e-02, 7.44339342e-05, 5.97983255e-01;
+            
+            double radius = 0.05;
+            double x_const = x_ref_hor(0, 3);
+            double y_center = x_ref_hor(0, 4);
+            double z_center = x_ref_hor(0, 5);
+            
+            double speed = 0.5;
+            for (int i = 0; i < mpc_->horizon_length_; i++)
+            {
+                x_ref_hor(i, 3) = x_const;
+                x_ref_hor(i, 4) = y_center;
+                // - radius/16 * std::cos(speed*M_PI*time);
+                x_ref_hor(i, 5) = z_center;
+                // - radius/2 * std::cos(speed*5*M_PI*time);
+                x_ref_hor(i, 12) = mpc_->g_;
+            }
         }
         mpc_->setXRefHor(x_ref_hor);
-
+        
         // This should be done inside the MPC class
         // Extract COM positions for the horizon
         Eigen::MatrixXd p_com_horizon_matrix(mpc_->horizon_length_, 3);
@@ -383,7 +419,12 @@ public:
                 p_com_horizon_matrix(i, j) = x_ref_hor(i, j + 3);
             }
         }
-
+        
+        double landing_position_x_ = 0.0;
+        double landing_position_y_ = 0.0;
+        
+        std::vector<std::vector<int>> contact_horizon = gaitPlanner(mpc_->getCHorizon(), landing_position_x_, landing_position_y_);
+        
         // Update MPC solution
         auto start_time = ros::WallTime::now();
 
@@ -457,8 +498,8 @@ public:
         //                 << mpc_->getPComHorizon());
         // ROS_INFO_STREAM("contact_horizon_matrix: \n"
         //                 << contact_horizon_matrix);
-        ROS_INFO_STREAM("MPC contact_horizon: \n"
-                        << mpc_->getContactHorizon());
+        // ROS_INFO_STREAM("MPC contact_horizon: \n"
+                        // << mpc_->getContactHorizon());
         // ROS_INFO_STREAM("MPC x_opt: \n"
         //                 << mpc_->getXOpt());
         // ROS_INFO_STREAM("MPC u_opt: \n"
