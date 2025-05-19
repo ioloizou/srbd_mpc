@@ -88,10 +88,11 @@ namespace g1_mpc
 
     // Test weights
     Eigen::VectorXd q_diag(num_states_);
-    q_diag << 8e1, 9e1, 5e1, 
-              1e5, 1e6, 1e5, 
-              5e2, 5e2, 1e2, 
-              5e2, 9e2, 9e2, 0;
+    q_diag << 75e1, 75e0, 125e1,
+              8e3, 4e4, 3e5,
+              8e2, 2e3, 3e2,
+              5e2, 5e3, 5e2,
+            0;
     Q_weights_ = q_diag.asDiagonal();
 
     Eigen::VectorXd r_diag = Eigen::VectorXd::Constant(num_controls_, 0.001);

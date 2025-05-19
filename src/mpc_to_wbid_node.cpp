@@ -125,6 +125,52 @@ public:
                                 0, 0, 1, 1,
                                 0, 0, 1, 1; 
         }
+
+        // Eigen::MatrixXd contact_planning(PLANNING_HORIZON, mpc_->getNumContacts());
+        // contact_planning << 1, 1, 1, 1,
+        //                     1, 1, 1, 1,
+        //                     1, 1, 1, 1,
+        //                     1, 1, 1, 1,
+        //                     1, 1, 1, 1,
+        //                     1, 1, 0, 0,
+        //                     1, 1, 0, 0,
+        //                     1, 1, 0, 0,
+        //                     1, 1, 0, 0,
+        //                     1, 1, 0, 0,
+        //                     0, 0, 1, 1,
+        //                     0, 0, 1, 1,
+        //                     0, 0, 1, 1,
+        //                     0, 0, 1, 1,
+        //                     0, 0, 1, 1,
+        //                     1, 1, 0, 0,
+        //                     1, 1, 0, 0,
+        //                     1, 1, 0, 0,
+        //                     1, 1, 0, 0,
+        //                     1, 1, 0, 0;
+        
+        // const int gait_phase = std::floor(current_time / mpc_->getDt()); 
+        // if (gait_phase >= 10){
+        //     contact_planning << 0, 0, 1, 1,
+        //                         0, 0, 1, 1,
+        //                         0, 0, 1, 1,
+        //                         0, 0, 1, 1,
+        //                         0, 0, 1, 1,
+        //                         1, 1, 0, 0,
+        //                         1, 1, 0, 0,
+        //                         1, 1, 0, 0,
+        //                         1, 1, 0, 0,
+        //                         1, 1, 0, 0,
+        //                         0, 0, 1, 1,
+        //                         0, 0, 1, 1,
+        //                         0, 0, 1, 1,
+        //                         0, 0, 1, 1,
+        //                         0, 0, 1, 1,
+        //                         1, 1, 0, 0,
+        //                         1, 1, 0, 0,
+        //                         1, 1, 0, 0,
+        //                         1, 1, 0, 0,
+        //                         1, 1, 0, 0; 
+        // }
         
         const int k = gait_phase % mpc_->horizon_length_;
         // ROS_INFO_STREAM("Gait phase: " << gait_phase << ", k: " << k);
@@ -210,7 +256,8 @@ public:
                     
                     // Placeholder for publishing
                     landing_position_x_ = p_swing_foot_land_des_x;
-                    landing_position_y_ = p_swing_foot_land_des_y + FOOT_OFFSET_Y_COM;
+                    landing_position_y_ = p_swing_foot_land_des_y; 
+                    // + FOOT_OFFSET_Y_COM;
                 }
                 else{
                     // Lower right foot
@@ -223,7 +270,8 @@ public:
 
                     // Placeholder for publishing
                     landing_position_x_ = p_swing_foot_land_des_x;
-                    landing_position_y_ = p_swing_foot_land_des_y - FOOT_OFFSET_Y_COM;
+                    landing_position_y_ = p_swing_foot_land_des_y; 
+                    // - FOOT_OFFSET_Y_COM;
                 }    
             }             
             double p_swing_foot_land_des_x = 0.0;
@@ -356,7 +404,7 @@ public:
         
         // Commanded Velocity (roll, pitch, yaw, x, y, z)
         Eigen::VectorXd v_cmd(6);
-        v_cmd << 0.0, 0.0, 0.0, 1.2, 0.0, 0.0;
+        v_cmd << 0.0, 0.0, 0.0, 0.35, 0.0, 0.0;
 
         // Reference trajectory is a simple euler integration of velocity command
         if (is_walking_forward)
@@ -378,7 +426,8 @@ public:
 
                 // Angular velocity integration (only yaw)
                 // In world frame
-                x_ref_hor(i, 2) = mpc_->getX0()(2) + v_cmd(2) * i * mpc_->getDt();
+                x_ref_hor(i, 2) = 0; 
+                // mpc_->getX0()(2) + v_cmd(2) * i * mpc_->getDt();
                 
                 // Set the angular velocity reference
                 x_ref_hor(i, 8) = v_cmd(2) ;
@@ -470,11 +519,11 @@ public:
         double p_dot_com_des_x = p_dot_com_des(0);
         double p_dot_com_des_y = p_dot_com_des(1); 
         
-        double k_vel_gain = stance_duration * 0.5;
+        const double k_vel_gain = 0.02;
 
         // TODO add the offset from the CoM to the foot
-        p_swing_foot_land_des_x = p_com_x + p_dot_com_x * stance_duration * 0.5 + k_vel_gain * (p_dot_com_x - p_dot_com_des_x);
-        p_swing_foot_land_des_y = p_com_y + p_dot_com_y * stance_duration * 0.5 + k_vel_gain * (p_dot_com_y - p_dot_com_des_y);
+        p_swing_foot_land_des_x = p_com_x + p_dot_com_x * stance_duration * 0.5 * mpc_->getDt() + k_vel_gain * (p_dot_com_x - p_dot_com_des_x);
+        p_swing_foot_land_des_y = p_com_y + p_dot_com_y * stance_duration * 0.5 * mpc_->getDt() + k_vel_gain * (p_dot_com_y - p_dot_com_des_y);
 
         // Centrifugal term can be added later
     }
@@ -496,8 +545,8 @@ public:
         //                 << p_com_horizon_matrix);
         // ROS_INFO_STREAM("MPC p_com_horizon: \n"
         //                 << mpc_->getPComHorizon());
-        // ROS_INFO_STREAM("contact_horizon_matrix: \n"
-        //                 << contact_horizon_matrix);
+        ROS_INFO_STREAM("contact_horizon_matrix: \n"
+                        << contact_horizon_matrix);
         // ROS_INFO_STREAM("MPC contact_horizon: \n"
                         // << mpc_->getContactHorizon());
         // ROS_INFO_STREAM("MPC x_opt: \n"
