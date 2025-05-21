@@ -256,8 +256,7 @@ public:
                     
                     // Placeholder for publishing
                     landing_position_x_ = p_swing_foot_land_des_x;
-                    landing_position_y_ = p_swing_foot_land_des_y; 
-                    // + FOOT_OFFSET_Y_COM;
+                    landing_position_y_ = p_swing_foot_land_des_y - FOOT_OFFSET_Y_COM; // THIS WORKS WITH OPOSSITE SIGN BUG SOMEWHERE
                 }
                 else{
                     // Lower right foot
@@ -270,8 +269,7 @@ public:
 
                     // Placeholder for publishing
                     landing_position_x_ = p_swing_foot_land_des_x;
-                    landing_position_y_ = p_swing_foot_land_des_y; 
-                    // - FOOT_OFFSET_Y_COM;
+                    landing_position_y_ = p_swing_foot_land_des_y + FOOT_OFFSET_Y_COM;
                 }    
             }             
             double p_swing_foot_land_des_x = 0.0;
