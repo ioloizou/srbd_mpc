@@ -4,6 +4,12 @@ project(g1_mpc)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+include(${CMAKE_SOURCE_DIR}/cmake/cmrc.cmake)
+
+cmrc_add_resource_library(g1_description_resources
+    g1_locomotion/g1_description/g1_23dof.urdf
+)
+
 find_package(catkin REQUIRED COMPONENTS
     rospy
     std_msgs
@@ -24,6 +30,7 @@ set(OsqpEigen_DIR /home/forest_ws/install/lib/cmake/OsqpEigen)
 # OSQP Eigen wrapper
 find_package(OsqpEigen REQUIRED)
 find_package(pybind11 REQUIRED)
+find_package(xbot2_interface REQUIRED)
 
 catkin_package(
     INCLUDE_DIRS include
@@ -45,10 +52,11 @@ add_library(g1_mpc
     src/
 )
 
-# Link against OSQP
+# Link against OSQP and XBot2 interface
 target_link_libraries(g1_mpc
     ${catkin_LIBRARIES}
     OsqpEigen::OsqpEigen
+    xbot2_interface::xbot2_interface
 )
 
 # Python bindings with pybind11
