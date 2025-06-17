@@ -259,12 +259,12 @@ namespace g1_mpc
     {
       if (i == 0)
       {
-        Aqp_.block(0, 0, num_states_, num_states_) = A_discrete_;
+        Aqp_.block(0, 0, num_states_, num_states_) = Eigen::MatrixXd::Identity(num_states_, num_states_);
       }
       else
       {
         Aqp_.block(i * num_states_, 0, num_states_, num_states_) =
-            Aqp_.block((i - 1) * num_states_, 0, num_states_, num_states_) * A_discrete_;
+            Aqp_.block((i) * num_states_, 0, num_states_, num_states_) * A_discrete_;
       }
     }
   }
