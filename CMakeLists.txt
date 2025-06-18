@@ -4,10 +4,9 @@ project(g1_mpc)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include(${CMAKE_SOURCE_DIR}/cmake/cmrc.cmake)
 
-cmrc_add_resource_library(g1_description_resources
-    g1_locomotion/g1_description/g1_23dof.urdf
+set(
+    xbot2_interface::xbot2_interface
 )
 
 find_package(catkin REQUIRED COMPONENTS

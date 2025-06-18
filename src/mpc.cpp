@@ -1,6 +1,8 @@
 #include "mpc.hpp"
 #include <chrono>
 #include <xbot2_interface/xbotinterface2.h>
+
+
 namespace g1_mpc
 {
   // Define static members
@@ -150,8 +152,7 @@ namespace g1_mpc
     p_com_horizon_ = Eigen::MatrixXd::Zero(horizon_length_, 3);
   }
 
-  double MPC::urdfSetup(){
-
+  void MPC::urdfSetup(){
   }
 
   double MPC::extractPsi()
@@ -229,27 +230,27 @@ namespace g1_mpc
     {
       if (i == 0)
       {
-        B_continuous_.block(0, 3, 0, )
+        // B_continuous_.block(0, 3, 0, )
       }
-	  else
-	  {
-        for (int j = 0; j < num_contacts_; j++)
-        {
-          // Extract contact point and COM position
-          Eigen::Vector3d contact_pos(c_horizon_(i, 3 * j), c_horizon_(i, 3 * j + 1), c_horizon_(i, 3 * j + 2));
-          Eigen::Vector3d com_pos(p_com_horizon_(i, 0), p_com_horizon_(i, 1), p_com_horizon_(i, 2));
+			else
+			{
+					for (int j = 0; j < num_contacts_; j++)
+					{
+						// Extract contact point and COM position
+						Eigen::Vector3d contact_pos(c_horizon_(i, 3 * j), c_horizon_(i, 3 * j + 1), c_horizon_(i, 3 * j + 2));
+						Eigen::Vector3d com_pos(p_com_horizon_(i, 0), p_com_horizon_(i, 1), p_com_horizon_(i, 2));
 
-          // Vector from COM to contact point
-          r_ = contact_pos - com_pos;
-          Eigen::Matrix3d r_skew = vectorToSkewSymmetricMatrix(r_);
+						// Vector from COM to contact point
+						r_ = contact_pos - com_pos;
+						Eigen::Matrix3d r_skew = vectorToSkewSymmetricMatrix(r_);
 
-          // Fill B matrix for this contact
-          B_continuous_.block(6, 3 * j, 3, 3) = inertia_world_inv * r_skew;
-          B_continuous_.block(9, 3 * j, 3, 3) = Eigen::Matrix3d::Identity() / robot_mass_;
-        }
-		}
-      // Store in the full horizon B matrix
-      B_continuous_hor_.block(i * num_states_, 0, num_states_, num_controls_) = B_continuous_;
+						// Fill B matrix for this contact
+						B_continuous_.block(6, 3 * j, 3, 3) = inertia_world_inv * r_skew;
+						B_continuous_.block(9, 3 * j, 3, 3) = Eigen::Matrix3d::Identity() / robot_mass_;
+					}
+			}
+				// Store in the full horizon B matrix
+				B_continuous_hor_.block(i * num_states_, 0, num_states_, num_controls_) = B_continuous_;
     }
   }
 
