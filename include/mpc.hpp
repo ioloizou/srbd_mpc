@@ -3,6 +3,8 @@
 #include <OsqpEigen/OsqpEigen.h>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
+#include <xbot2_interface/xbotinterface2.h>
+
 
 #include <vector>
 #include <chrono>
@@ -26,6 +28,9 @@ namespace g1_mpc
 
 		// Initialize matrices for performance
 		void initMatrices();
+
+		// Setup URDF
+		void urdfSetup();
 
 		// Extract average yaw angle from reference trajectory
 		double extractPsi();
@@ -138,6 +143,7 @@ namespace g1_mpc
 		int num_contacts_;						// Number of contacts
 		int num_states_;
 		int num_controls_;
+		int num_dof;
 		const int num_bounds_ = 5;
 
 		// Inertia matrix
@@ -188,6 +194,9 @@ namespace g1_mpc
 		Eigen::MatrixXd u_opt_;
 		Eigen::MatrixXd x_opt_;
 		Eigen::VectorXd u_opt0_;
+		Eigen::VectorXd u_full_;
+
+		std::shared_ptr<XBot::ModelInterface> model_;
 
 		// Temp vectors
 		Eigen::Vector3d r_;

@@ -1,10 +1,18 @@
 #include "mpc.hpp"
 #include <chrono>
-#include <xbot2_interface/xbotinterface2.h>
+#include <fstream>
 
 
 namespace g1_mpc
 {
+		std::string ReadFile(std::string path)
+	{
+			std::ifstream t(path);
+			std::stringstream buffer;
+			buffer << t.rdbuf();
+			return buffer.str();
+	}
+
   // Define static members
   const double MPC::g_ = -9.80665;
   int MPC::horizon_length_ = 10;
@@ -153,7 +161,10 @@ namespace g1_mpc
   }
 
   void MPC::urdfSetup(){
-  }
+    model_ = XBot::ModelInterface::getModel(ReadFile("home/forest_ws/install/share/g1_descriptions/g1_23dof.urdf"),
+                                            "pin");
+    num_dof = model_->getNv();
+	}
 
   double MPC::extractPsi()
   {
@@ -230,7 +241,13 @@ namespace g1_mpc
     {
       if (i == 0)
       {
-        // B_continuous_.block(0, 3, 0, )
+				auto centroidal_Momentum_Matrix_Dot_Times_V = Eigen::MatrixXd::Zero(6, num_dof);
+				auto com_Jacobian = model_->getCOMJacobian();
+
+        B_continuous_.block(0, 0, 3, 3) = 0.5 * pow(dt_, 2) * rotation_z_T_.transpose() * centroidal_Momentum_Matrix_Dot_Times_V.block(3, 6, 0, num_dof);
+		    B_continuous_.block(3, 6, 3, 3) = 0.5 * pow(dt_, 2) * com_Jacobian.block(0, 3, 0, num_dof);
+			  B_continuous_.block(6, 9, 3, 3) = dt_* com_Jacobian.block(3, 6, 0, num_dof);        
+        B_continuous_.block(9, 12, 3, 3) = model_->computeCentroidalMomentumMatrix().block(0, 3, 0, num_dof);
       }
 			else
 			{
