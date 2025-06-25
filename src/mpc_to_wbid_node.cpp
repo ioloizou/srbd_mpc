@@ -103,7 +103,7 @@ public:
                             0, 0, 1, 1; 
         
         const int gait_phase = std::floor(current_time / mpc_->getDt()); 
-        if (gait_phase >= 10){
+        if (gait_phase >= 10 && gait_phase < 30){
             contact_planning << 1, 1, 0, 0,
                                 1, 1, 0, 0,
                                 1, 1, 0, 0,
@@ -126,54 +126,12 @@ public:
                                 0, 0, 1, 1; 
         }
 
-        // Eigen::MatrixXd contact_planning(PLANNING_HORIZON, mpc_->getNumContacts());
-        // contact_planning << 1, 1, 1, 1,
-        //                     1, 1, 1, 1,
-        //                     1, 1, 1, 1,
-        //                     1, 1, 1, 1,
-        //                     1, 1, 1, 1,
-        //                     1, 1, 0, 0,
-        //                     1, 1, 0, 0,
-        //                     1, 1, 0, 0,
-        //                     1, 1, 0, 0,
-        //                     1, 1, 0, 0,
-        //                     0, 0, 1, 1,
-        //                     0, 0, 1, 1,
-        //                     0, 0, 1, 1,
-        //                     0, 0, 1, 1,
-        //                     0, 0, 1, 1,
-        //                     1, 1, 0, 0,
-        //                     1, 1, 0, 0,
-        //                     1, 1, 0, 0,
-        //                     1, 1, 0, 0,
-        //                     1, 1, 0, 0;
-        
-        // const int gait_phase = std::floor(current_time / mpc_->getDt()); 
-        // if (gait_phase >= 10){
-        //     contact_planning << 0, 0, 1, 1,
-        //                         0, 0, 1, 1,
-        //                         0, 0, 1, 1,
-        //                         0, 0, 1, 1,
-        //                         0, 0, 1, 1,
-        //                         1, 1, 0, 0,
-        //                         1, 1, 0, 0,
-        //                         1, 1, 0, 0,
-        //                         1, 1, 0, 0,
-        //                         1, 1, 0, 0,
-        //                         0, 0, 1, 1,
-        //                         0, 0, 1, 1,
-        //                         0, 0, 1, 1,
-        //                         0, 0, 1, 1,
-        //                         0, 0, 1, 1,
-        //                         1, 1, 0, 0,
-        //                         1, 1, 0, 0,
-        //                         1, 1, 0, 0,
-        //                         1, 1, 0, 0,
-        //                         1, 1, 0, 0; 
-        // }
+        else if (gait_phase >= 30){
+            is_standing = true;
+        }
         
         const int k = gait_phase % mpc_->horizon_length_;
-        // ROS_INFO_STREAM("Gait phase: " << gait_phase << ", k: " << k);
+        ROS_INFO_STREAM("Gait phase: " << gait_phase << ", k: " << k);
         
 
         // Create contact horizon based on current phase
@@ -192,13 +150,13 @@ public:
                 contact_horizon_eigen(i, j) = contact_horizon[i][j];
             }
         }
-        // ROS_INFO_STREAM("Contact horizon: \n" << contact_horizon_eigen);
         
-
         if (is_standing)
         {
             std::fill(contact_horizon.begin(), contact_horizon.end(), std::vector<int>{1, 1, 1, 1});
         }
+        
+        ROS_INFO_STREAM("Contact horizon: \n" << contact_horizon_eigen);
 
         /****************************
          * Footstep related         *
@@ -402,7 +360,13 @@ public:
         
         // Commanded Velocity (roll, pitch, yaw, x, y, z)
         Eigen::VectorXd v_cmd(6);
-        v_cmd << 0.0, 0.0, 0.0, 0.35, 0.0, 0.0;
+
+        if (simulation_time_ <= 1.5){
+            v_cmd << 0.0, 0.0, 0.0, 0.3, 0.0, 0.0;
+        }
+        else{
+            v_cmd << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0; // Forward velocity command
+        }
 
         // Reference trajectory is a simple euler integration of velocity command
         if (is_walking_forward)
